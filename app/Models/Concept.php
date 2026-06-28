@@ -9,4 +9,9 @@ class Concept extends Model
     protected $fillable = [
         'name',
     ];
+
+    public function pays()
+    {
+        return $this->hasMany(Pay::class);
+    }
 }

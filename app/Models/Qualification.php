@@ -13,8 +13,18 @@ class Qualification extends Model
         'qualification',
     ];
 
-    public function students()
+    public function student()
     {
-        return $this->belongsToMany(Student::class, 'qualification_student');
+        return $this->belongsTo(Student::class);
+    }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
+    }
+
+    public function subject()
+    {
+        return $this->belongsTo(Subject::class);
     }
 }

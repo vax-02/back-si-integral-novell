@@ -12,8 +12,13 @@ class Subject extends Model
         'career_id',
     ];
 
-    public function courses()
+    public function qualifications()
     {
-        return $this->belongsToMany(Course::class, 'course_subject');
+        return $this->hasMany(Qualification::class);
+    }
+
+    public function career()
+    {
+        return $this->belongsTo(Career::class);
     }
 }

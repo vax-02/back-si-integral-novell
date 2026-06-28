@@ -10,7 +10,11 @@ class Student extends Model
         'career_id',
         'user_id',
         'degree_id',
+        'turno',
         'matricula',
+        'birth_certificate',
+        'school_diploma',
+        'carnet',
         'status',
     ];
 
@@ -27,5 +31,15 @@ class Student extends Model
     public function degree()
     {
         return $this->belongsTo(Degree::class);
+    }
+
+    public function pays()
+    {
+        return $this->hasMany(Pay::class);
+    }
+
+    public function qualifications()
+    {
+        return $this->hasMany(Qualification::class);
     }
 }
