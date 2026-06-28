@@ -13,9 +13,14 @@ return new class extends Migration
     {
         Schema::create('courses', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('career_id')
+                ->constrained()
+                ->onDelete('cascade');
+
             $table->string('gestion',25);
             $table->string('paralelo',2);
             $table->integer('limit');
+            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
             $table->timestamps();
         });
     }

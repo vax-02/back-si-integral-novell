@@ -17,6 +17,17 @@ return new class extends Migration
                 ->constrained()
                 ->onDelete('cascade');
 
+            $table->foreignId('degree_id')
+                ->constrained()
+                ->onDelete('cascade');
+
+            $table->tinyInteger('cv')->default(0);
+            $table->tinyInteger('professional_title')->default(0);
+            $table->tinyInteger('carnet')->default(0);
+            $table->tinyInteger('certificate')->default(0);
+
+
+
             $table->tinyInteger('status')->default(1);
             $table->timestamps();
         });

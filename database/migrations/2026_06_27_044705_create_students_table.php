@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Run the migrations .
      */
     public function up(): void
     {
@@ -23,7 +23,14 @@ return new class extends Migration
                 ->constrained()
                 ->onDelete('cascade');
 
-            $table->string('matricula', 50);
+            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
+
+            $table->string('matricula', 100);
+            
+            $table->tinyInteger('birth_certificate')->default(1);
+            $table->tinyInteger('school_diploma')->default(1);
+            $table->tinyInteger('carnet')->default(1);
+            
             $table->tinyInteger('status')->default(1);
             $table->timestamps();
         });
