@@ -11,4 +11,6 @@ Route::get('/user', function (Request $request) {
 Route::post('login', [UserController::class, 'login']);
 Route::middleware('encrypted.token')->group(function () {
     Route::apiResource('users', UserController::class);
+
+    Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
 });

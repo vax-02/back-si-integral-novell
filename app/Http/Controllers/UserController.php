@@ -23,13 +23,13 @@ class UserController extends Controller
 
             if (! $user || ! Hash::check($validated['password'], $user->password)) {
                 return response()->json([
-                    'message' => 'Invalid credentials.',
+                    'message' => 'Credenciales invalidas',
                 ], 401);
             }
 
             if ((int) $user->status !== 1) {
                 return response()->json([
-                    'message' => 'User is inactive.',
+                    'message' => 'Usuario inactivo',
                 ], 403);
             }
 
@@ -62,6 +62,25 @@ class UserController extends Controller
             ]);
         } catch (Exception $exception) {
             return $this->errorResponse($exception);
+        }
+    }
+
+    public function updateProfile(Request $request, User $user){
+        $validated = $request->validate([
+            'phone' => ['required', 'integer', 'min:60000000', 'max:79999999'],
+        ]);
+
+        try {
+            $user->cellphone = $validated['phone'];
+            $user->save();
+
+            return response()->json([
+                'message' => 'Usuario actualizado correctamente.',
+            ], 200);
+        } catch (Exception $exception) {
+            return response()->json([
+                'message' => 'Error al actualizar el usuario.',
+            ], 500);
         }
     }
 
