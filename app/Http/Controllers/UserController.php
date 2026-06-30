@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Auth;
 use Exception;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
@@ -19,9 +20,12 @@ class UserController extends Controller
         ]);
 
         try {
-            $user = User::with('role')->where('email', $validated['email'])->first();
 
-            if (! $user || ! Hash::check($validated['password'], $user->password)) {
+            $user = User::with('role')
+                ->where('email', $validated['email'])
+                ->first();
+
+            if (!$user || !Hash::check($validated['password'], $user->password)) {
                 return response()->json([
                     'message' => 'Credenciales invalidas',
                 ], 401);
@@ -34,6 +38,7 @@ class UserController extends Controller
             }
 
             $expiresAt = now()->addHours(8);
+
             $basicUserData = [
                 'id' => $user->id,
                 'role_id' => $user->role_id,
@@ -47,11 +52,8 @@ class UserController extends Controller
                 'status' => $user->status,
             ];
 
-            $token = Crypt::encryptString(json_encode([
-                'user' => $basicUserData,
-                'issued_at' => now()->toIso8601String(),
-                'expires_at' => $expiresAt->toIso8601String(),
-            ]));
+            // ✔ ESTE ES EL TOKEN REAL (SANCTUM)
+            $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
                 'message' => 'Login successful.',
@@ -60,6 +62,7 @@ class UserController extends Controller
                 'expires_at' => $expiresAt->toIso8601String(),
                 'user' => $basicUserData,
             ]);
+
         } catch (Exception $exception) {
             return $this->errorResponse($exception);
         }
@@ -82,6 +85,25 @@ class UserController extends Controller
                 'message' => 'Error al actualizar el usuario.',
             ], 500);
         }
+    }
+    public function updatePassword(Request $request){
+        $request->validate([
+            'current' => 'required',
+            'new' => 'required|min:8',
+        ]);
+
+        $user = auth()->user();
+        if (!Hash::check($request->current, $user->password)) {
+            return response()->json([
+                'message' => 'Contraseña actual incorrecta'
+            ], 400);
+        }
+        $user->password = Hash::make($request->new);
+        $user->save();
+
+        return response()->json([
+            'message' => 'Contraseña actualizada'
+        ]);
     }
 
     public function index()
