@@ -28,12 +28,14 @@ class UserController extends Controller
             if (!$user || !Hash::check($validated['password'], $user->password)) {
                 return response()->json([
                     'message' => 'Credenciales invalidas',
+                    'code' => 'CREDENCIALES'
                 ], 401);
             }
 
             if ((int) $user->status !== 1) {
                 return response()->json([
                     'message' => 'Usuario inactivo',
+                    'code'=> 'INACTIVO'
                 ], 403);
             }
 
@@ -106,10 +108,37 @@ class UserController extends Controller
         ]);
     }
 
-    public function index()
+    public function index(Request $request)
     {
         try {
-            return response()->json(User::with('role')->get());
+            $perPage = $request->input('per_page', 10);
+            $search = $request->input('search');
+            
+            $query = User::with('role');
+            
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%$search%")
+                    ->orWhere('email', 'like', "%$search%");
+                });
+            }
+        
+
+            $totalUsers = User::count();
+            $totalAdmins = User::where('role_id', 1)->count();
+            $totalSecretaries = User::where('role_id', 2)->count();
+            $totalDocentes = User::where('role_id', 3)->count();
+            $totalEstudiantes = User::where('role_id', 4)->count();
+
+
+            return response()->json([
+                'total_users' => $totalUsers,
+                'users' => $query->paginate($perPage),
+                'total_admins' => $totalAdmins ? $totalAdmins : 0,
+                'total_secretarias' => $totalSecretaries ? $totalSecretaries : 0,
+                'total_docentes' => $totalDocentes ? $totalDocentes : 0,
+                'total_estudiantes' => $totalEstudiantes ? $totalEstudiantes : 0,
+            ]);
         } catch (Exception $exception) {
             return $this->errorResponse($exception);
         }
@@ -137,12 +166,13 @@ class UserController extends Controller
             'first_lastname' => ['required', 'string', 'max:255'],
             'second_lastname' => ['nullable', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
             'cellphone' => ['nullable', 'string', 'max:8'],
             'status' => ['sometimes', 'integer', 'in:0,1'],
         ]);
+        
 
         try {
+            $validated['password'] = Hash::make($validated['ci']); 
             $user = User::create($validated);
 
             return response()->json([

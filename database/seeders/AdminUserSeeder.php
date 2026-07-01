@@ -14,16 +14,13 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
-        $adminRole = Role::firstOrCreate([
-            'name' => 'admin',
-        ]);
-
+       
         User::updateOrCreate(
             [
                 'email' => 'admin@example.com',
             ],
             [
-                'role_id' => $adminRole->id,
+                'role_id' => 1,
                 'ci' => '00000001',
                 'name' => 'Admin',
                 'first_lastname' => 'System',
