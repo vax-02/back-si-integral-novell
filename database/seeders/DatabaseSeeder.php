@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,    
             AdminUserSeeder::class,
-
+            DegreeSeeder::class,
         ]);
         User::factory()->count(50)->create();
     }

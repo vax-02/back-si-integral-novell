@@ -12,7 +12,8 @@ class DegreeController extends Controller
      */
     public function index()
     {
-        //
+        $degrees = Degree::all();
+        return response()->json($degrees);
     }
 
     /**
