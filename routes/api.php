@@ -15,4 +15,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
 
     Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
+    Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
 });

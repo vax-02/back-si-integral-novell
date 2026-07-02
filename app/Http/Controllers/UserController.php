@@ -114,7 +114,7 @@ class UserController extends Controller
             $perPage = $request->input('per_page', 10);
             $search = $request->input('search');
             
-            $query = User::with('role');
+            $query = User::with('role')->where('id','!=',auth()->user()->id);
             
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -270,5 +270,18 @@ class UserController extends Controller
         return response()->json([
             'message' => 'An error occurred while processing the request.',
         ], 500);
+    }
+    public function changeStatus(User $user)
+    {
+        try {
+            $user->status = $user->status  ? 0 : 1;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Estado actualizado correctamente.',
+            ]);
+        } catch (Exception $exception) {
+            return $this->errorResponse($exception);
+        }
     }
 }
