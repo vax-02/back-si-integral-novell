@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
+            $table->tinyInteger('level')->unsigned();
             $table->string('name', 100);
             $table->string('sigla', 20);
             
@@ -20,6 +21,10 @@ return new class extends Migration
                 ->constrained()
                 ->onDelete('cascade');
             
+            $table->foreignId('subject_id')
+                ->nullable()
+                ->constrained('subjects')
+                ->nullOnDelete();
             $table->timestamps();
         });
     }
