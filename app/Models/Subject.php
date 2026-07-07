@@ -9,7 +9,9 @@ class Subject extends Model
     protected $fillable = [
         'name',
         'sigla',
+        'level',
         'career_id',
+        'subject_id',
     ];
 
     public function qualifications()
@@ -20,5 +22,10 @@ class Subject extends Model
     public function career()
     {
         return $this->belongsTo(Career::class);
+    }
+
+    public function prerequisite()
+    {
+        return $this->belongsTo(self::class, 'subject_id');
     }
 }

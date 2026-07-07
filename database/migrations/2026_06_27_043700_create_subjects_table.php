@@ -15,12 +15,12 @@ return new class extends Migration
             $table->id();
             $table->tinyInteger('level')->unsigned();
             $table->string('name', 100);
-            $table->string('sigla', 20);
-            
+            $table->string('sigla', 20)->unique();
+
             $table->foreignId('career_id')
                 ->constrained()
                 ->onDelete('cascade');
-            
+
             $table->foreignId('subject_id')
                 ->nullable()
                 ->constrained('subjects')

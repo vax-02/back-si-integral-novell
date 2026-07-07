@@ -10,9 +10,29 @@ class SubjectController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $query = Subject::query()->with(['career', 'prerequisite']);
+
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->input('name') . '%');
+        }
+
+        if ($request->filled('sigla')) {
+            $query->where('sigla', 'like', '%' . $request->input('sigla') . '%');
+        }
+
+        if ($request->filled('career')) {
+            $query->whereHas('career', function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->input('career') . '%');
+            });
+        }
+
+        $subjects = $query->orderBy('name')->paginate($request->input('per_page', 10));
+
+        return response()->json([
+            'subjects' => $subjects,
+        ]);
     }
 
     /**
