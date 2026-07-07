@@ -3,6 +3,7 @@
 use App\Http\Controllers\CareerController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
+use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,7 @@ Route::post('login', [UserController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('users/change-password', [UserController::class, 'updatePassword']);
 
+    Route::get('careers/simple', [CareerController::class, 'simple']);
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);
     Route::post('careers/import-confirm', [CareerController::class, 'importConfirm']);
     Route::post('careers/{career}/subjects', [CareerController::class, 'storeSubject']);
@@ -20,6 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
 
     Route::apiResource('users', UserController::class);
+    Route::apiResource('students', StudentController::class);
     Route::apiResource('careers', CareerController::class);
     Route::apiResource('docentes', DocenteController::class);
     Route::get('subjects', [SubjectController::class, 'index']);

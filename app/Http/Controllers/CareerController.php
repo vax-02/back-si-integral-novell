@@ -33,6 +33,17 @@ class CareerController extends Controller
         }
     }
 
+    public function simple(){
+        try {
+            $careers = Career::select('id', 'name')->get();
+        
+            return response()->json([
+                'careers' => $careers,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json('error', 500);
+        }
+    }
     public function create()
     {
         //

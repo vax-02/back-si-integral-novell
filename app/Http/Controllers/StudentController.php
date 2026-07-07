@@ -10,9 +10,47 @@ class StudentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        try{
+            $perPage = $request->input('per_page', 10);
+            $search  = $request->input('search');
+
+            $query = Student::select([
+                'id',
+                'user_id',
+                'career_id',
+                'status'
+            ])->with([
+                'user:id,name,first_lastname,second_lastname,email,ci',
+                'career:id,name'
+            ]);
+
+            if ($search) {
+                $query->whereHas('user', function ($q) use ($search) {
+                    $q->where('name', 'like', "%$search%")
+                      ->orWhere('first_lastname', 'like', "%$search%")
+                      ->orWhere('second_lastname', 'like', "%$search%")
+                      ->orWhere('ci', 'like', "%$search%")
+                      ->orWhere('email', 'like', "%$search%");
+                });
+            }
+
+            $total    = Student::count();
+            $actives  = Student::where('status', 1)->count();
+            $inactive = Student::where('status', 0)->count();
+
+            return response()->json([
+                'students' => $query->paginate($perPage),
+                'total'    => $total,
+                'actives'  => $actives,
+                'inactive' => $inactive,
+            ]);
+        }catch(\Exception $e){
+            return response()->json([
+                'message' => 'Error al obtener estudiantes',
+            ], 500);
+        }
     }
 
     /**
@@ -20,7 +58,7 @@ class StudentController extends Controller
      */
     public function create()
     {
-        //
+        
     }
 
     /**
@@ -36,7 +74,21 @@ class StudentController extends Controller
      */
     public function show(Student $student)
     {
-        //
+        try{
+            $student->load([
+                'user:id,name,first_lastname,second_lastname,email,ci,cellphone',
+                'career:id,name'
+            ]);
+
+            return response()->json([
+                'student' => $student
+            ]);
+
+        }catch(\Exception $e){
+            return response()->json([
+                'message' => 'Error al obtener estudiantes',
+            ], 500);
+        }
     }
 
     /**
