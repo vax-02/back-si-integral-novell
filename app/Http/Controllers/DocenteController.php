@@ -3,138 +3,254 @@
 namespace App\Http\Controllers;
 
 use App\Models\Docente;
+use App\Models\User;
+use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class DocenteController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    // ─────────────────────────────────────────────────────────────
+    //  INDEX  GET /api/docentes
+    // ─────────────────────────────────────────────────────────────
     public function index(Request $request)
     {
         try {
-            $perPage = $request->per_page ?? 10;
+            $perPage = $request->input('per_page', 10);
+            $search  = $request->input('search');
 
-            $docentes = Docente::with(['user', 'degree'])->paginate($perPage);
-            return response()->json(['docentes' => $docentes], 200);
-        } catch (\Throwable $th) {
+            $query = Docente::with(['user', 'degree', 'subjects.career']);
+
+            if ($search) {
+                $query->whereHas('user', function ($q) use ($search) {
+                    $q->where('name',           'like', "%$search%")
+                      ->orWhere('first_lastname','like', "%$search%")
+                      ->orWhere('second_lastname','like', "%$search%")
+                      ->orWhere('ci',            'like', "%$search%")
+                      ->orWhere('email',         'like', "%$search%");
+                });
+            }
+
+            $total    = Docente::count();
+            $activos  = Docente::where('status', 1)->count();
+            $inactivos = Docente::where('status', 0)->count();
+
             return response()->json([
-                'message' => 'Error al listar los docentes.',
-                'error' => $th->getMessage(),
-            ], 500);
+                'docentes'  => $query->paginate($perPage),
+                'total'     => $total,
+                'activos'   => $activos,
+                'inactivos' => $inactivos,
+            ]);
+        } catch (Exception $e) {
+            return $this->errorResponse($e);
         }
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        try {
-            return response()->json(['message' => 'Use POST to create a new docente']);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Error al cargar el formulario de creación.',
-                'error' => $th->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
+    // ─────────────────────────────────────────────────────────────
+    //  STORE  POST /api/docentes
+    //  Crea el User (role_id=3 Docente) y luego el Docente
+    // ─────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
+        $request->validate([
+            // Datos del usuario
+            'name'             => ['required', 'string', 'max:255'],
+            'first_lastname'   => ['required', 'string', 'max:255'],
+            'second_lastname'  => ['nullable', 'string', 'max:255'],
+            'ci'               => ['required', 'string', 'max:12', 'unique:users,ci'],
+            'email'            => ['required', 'email', 'max:255', 'unique:users,email'],
+            'cellphone'        => ['nullable', 'string', 'max:8'],
+            // Datos del docente
+            'degree_id'        => ['required', 'integer', 'exists:degrees,id'],
+            'cv'               => ['sometimes', 'boolean'],
+            'professional_title' => ['sometimes', 'boolean'],
+            'carnet'           => ['sometimes', 'boolean'],
+            'certificate'      => ['sometimes', 'boolean'],
+        ]);
+
         try {
-            $validated = $request->validate([
-                'user_id' => 'required|exists:users,id|unique:docentes,user_id',
-                'degree_id' => 'required|exists:degrees,id',
-                'cv' => 'sometimes|in:0,1',
-                'professional_title' => 'sometimes|in:0,1',
-                'carnet' => 'sometimes|in:0,1',
-                'certificate' => 'sometimes|in:0,1',
-                'status' => 'sometimes|in:0,1',
+            DB::beginTransaction();
+
+            $user = User::create([
+                'name'           => $request->name,
+                'first_lastname' => $request->first_lastname,
+                'second_lastname'=> $request->second_lastname,
+                'ci'             => $request->ci,
+                'email'          => $request->email,
+                'cellphone'      => $request->cellphone,
+                'password'       => Hash::make($request->ci), // contraseña por defecto: el CI
+                'role_id'        => 3, // Docente
+                'status'         => 1,
             ]);
 
-            $docente = Docente::create($validated);
-            return response()->json($docente->load(['user', 'degree']), 201);
-        } catch (\Throwable $th) {
+            $docente = Docente::create([
+                'user_id'           => $user->id,
+                'degree_id'         => $request->degree_id,
+                'cv'                => $request->boolean('cv', false),
+                'professional_title'=> $request->boolean('professional_title', false),
+                'carnet'            => $request->boolean('carnet', false),
+                'certificate'       => $request->boolean('certificate', false),
+                'status'            => 1,
+            ]);
+
+            DB::commit();
+
             return response()->json([
-                'message' => 'Error al crear el docente.',
-                'error' => $th->getMessage(),
-            ], 500);
+                'message' => 'Docente creado exitosamente.',
+                'data'    => $docente->load(['user', 'degree', 'subjects']),
+            ], 201);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse($e);
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
+    // ─────────────────────────────────────────────────────────────
+    //  SHOW  GET /api/docentes/{docente}
+    // ─────────────────────────────────────────────────────────────
     public function show(Docente $docente)
     {
         try {
-            return $docente->load(['user', 'degree']);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Error al mostrar el docente.',
-                'error' => $th->getMessage(),
-            ], 500);
+            return response()->json($docente->load(['user', 'degree', 'subjects.career']));
+        } catch (Exception $e) {
+            return $this->errorResponse($e);
         }
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Docente $docente)
-    {
-        try {
-            return $docente->load(['user', 'degree']);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Error al cargar la edición del docente.',
-                'error' => $th->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
+    // ─────────────────────────────────────────────────────────────
+    //  UPDATE  PUT /api/docentes/{docente}
+    // ─────────────────────────────────────────────────────────────
     public function update(Request $request, Docente $docente)
     {
-        try {
-            $validated = $request->validate([
-                'user_id' => 'sometimes|exists:users,id|unique:docentes,user_id,' . $docente->id,
-                'degree_id' => 'sometimes|exists:degrees,id',
-                'cv' => 'sometimes|in:0,1',
-                'professional_title' => 'sometimes|in:0,1',
-                'carnet' => 'sometimes|in:0,1',
-                'certificate' => 'sometimes|in:0,1',
-                'status' => 'sometimes|in:0,1',
-            ]);
+        $request->validate([
+            'name'             => ['sometimes', 'string', 'max:255'],
+            'first_lastname'   => ['sometimes', 'string', 'max:255'],
+            'second_lastname'  => ['nullable',  'string', 'max:255'],
+            'ci'               => ['sometimes', 'string', 'max:12', 'unique:users,ci,' . $docente->user_id],
+            'email'            => ['sometimes', 'email',  'max:255', 'unique:users,email,' . $docente->user_id],
+            'cellphone'        => ['nullable',  'string', 'max:8'],
+            'degree_id'        => ['sometimes', 'integer', 'exists:degrees,id'],
+            'cv'               => ['sometimes', 'boolean'],
+            'professional_title' => ['sometimes', 'boolean'],
+            'carnet'           => ['sometimes', 'boolean'],
+            'certificate'      => ['sometimes', 'boolean'],
+        ]);
 
-            $docente->update($validated);
-            return response()->json($docente->load(['user', 'degree']), 200);
-        } catch (\Throwable $th) {
+        try {
+            DB::beginTransaction();
+
+            // Actualizar datos del usuario
+            $userFields = array_filter([
+                'name'           => $request->name,
+                'first_lastname' => $request->first_lastname,
+                'second_lastname'=> $request->second_lastname,
+                'ci'             => $request->ci,
+                'email'          => $request->email,
+                'cellphone'      => $request->cellphone,
+            ], fn($v) => !is_null($v));
+
+            if (!empty($userFields)) {
+                $docente->user->update($userFields);
+            }
+
+            // Actualizar datos del docente
+            $docenteFields = array_filter([
+                'degree_id'         => $request->degree_id,
+                'cv'                => $request->has('cv')                 ? $request->boolean('cv')                 : null,
+                'professional_title'=> $request->has('professional_title') ? $request->boolean('professional_title') : null,
+                'carnet'            => $request->has('carnet')             ? $request->boolean('carnet')             : null,
+                'certificate'       => $request->has('certificate')        ? $request->boolean('certificate')        : null,
+            ], fn($v) => !is_null($v));
+
+            if (!empty($docenteFields)) {
+                $docente->update($docenteFields);
+            }
+
+            DB::commit();
+
             return response()->json([
-                'message' => 'Error al actualizar el docente.',
-                'error' => $th->getMessage(),
-            ], 500);
+                'message' => 'Docente actualizado exitosamente.',
+                'data'    => $docente->fresh(['user', 'degree', 'subjects']),
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse($e);
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    // ─────────────────────────────────────────────────────────────
+    //  TOGGLE STATUS  PUT /api/docentes/{docente}/toggle-status
+    // ─────────────────────────────────────────────────────────────
+    public function toggleStatus(Docente $docente)
+    {
+        try {
+            $newStatus = $docente->status ? 0 : 1;
+
+            DB::beginTransaction();
+            $docente->update(['status' => $newStatus]);
+            $docente->user->update(['status' => $newStatus]);
+            DB::commit();
+
+            return response()->json([
+                'message' => $newStatus ? 'Docente activado.' : 'Docente bloqueado.',
+                'status'  => $newStatus,
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse($e);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  ASSIGN SUBJECT  POST /api/docentes/{docente}/subjects
+    // ─────────────────────────────────────────────────────────────
+    public function assignSubject(Request $request, Docente $docente)
+    {
+        $request->validate([
+            'subject_id' => ['required', 'integer', 'exists:subjects,id'],
+        ]);
+
+        try {
+            // syncWithoutDetaching evita duplicar, solo añade si no existe
+            $docente->subjects()->syncWithoutDetaching([$request->subject_id]);
+
+            return response()->json([
+                'message'  => 'Materia asignada exitosamente.',
+                'subjects' => $docente->subjects()->with('career')->get(),
+            ]);
+        } catch (Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  REMOVE SUBJECT  DELETE /api/docentes/{docente}/subjects/{subject}
+    // ─────────────────────────────────────────────────────────────
+    public function removeSubject(Docente $docente, int $subjectId)
+    {
+        try {
+            $docente->subjects()->detach($subjectId);
+
+            return response()->json([
+                'message'  => 'Materia removida exitosamente.',
+                'subjects' => $docente->subjects()->with('career')->get(),
+            ]);
+        } catch (Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  DESTROY  DELETE /api/docentes/{docente}
+    // ─────────────────────────────────────────────────────────────
     public function destroy(Docente $docente)
     {
         try {
             $docente->delete();
-            return response()->json(['message' => 'Docente deleted successfully'], 200);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Error al eliminar el docente.',
-                'error' => $th->getMessage(),
-            ], 500);
+            return response()->json(['message' => 'Docente eliminado exitosamente.']);
+        } catch (Exception $e) {
+            return $this->errorResponse($e);
         }
     }
 }

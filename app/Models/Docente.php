@@ -6,7 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Docente extends Model
 {
-    protected $fillable = ['user_id', 'degree_id', 'cv', 'professional_title', 'carnet', 'certificate', 'status'];
+    protected $fillable = [
+        'user_id',
+        'degree_id',
+        'cv',
+        'professional_title',
+        'carnet',
+        'certificate',
+        'status',
+    ];
 
     public function user()
     {
@@ -16,5 +24,11 @@ class Docente extends Model
     public function degree()
     {
         return $this->belongsTo(Degree::class);
+    }
+
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'docente_subject')
+                    ->withTimestamps();
     }
 }

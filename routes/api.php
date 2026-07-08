@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CareerController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
 use App\Http\Controllers\StudentController;
@@ -21,10 +22,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
 
+
+    Route::apiResource('courses', CourseController::class);
     Route::apiResource('users', UserController::class);
     Route::apiResource('students', StudentController::class);
     Route::apiResource('careers', CareerController::class);
     Route::apiResource('docentes', DocenteController::class);
+    Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
+    Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
+    Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
     Route::get('subjects', [SubjectController::class, 'index']);
     Route::get('degrees', [DegreeController::class, 'index']);
 
