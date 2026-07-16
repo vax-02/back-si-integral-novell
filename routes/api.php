@@ -4,9 +4,11 @@ use App\Http\Controllers\CareerController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
+use App\Http\Controllers\InstitutionController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
+use App\Models\Institution;
 use Illuminate\Support\Facades\Route;
 
 Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
@@ -15,6 +17,7 @@ Route::post('login', [UserController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('users/change-password', [UserController::class, 'updatePassword']);
 
+
     Route::get('careers/simple', [CareerController::class, 'simple']);
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);
     Route::post('careers/import-confirm', [CareerController::class, 'importConfirm']);
@@ -22,7 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
 
-
+    Route::apiResource('institutions', InstitutionController::class);
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('users', UserController::class);
     Route::apiResource('students', StudentController::class);

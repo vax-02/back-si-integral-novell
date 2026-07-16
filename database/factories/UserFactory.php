@@ -25,7 +25,6 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'role_id' => 1,
             'ci' => fake()->unique()->numerify('##########'),
 
             'name' => fake()->name(),

@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
+use App\Models\UserRoles;
+
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -15,12 +17,11 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
        
-        User::updateOrCreate(
+        $user = User::updateOrCreate(
             [
                 'email' => 'admin@example.com',
             ],
             [
-                'role_id' => 1,
                 'ci' => '00000001',
                 'name' => 'Admin',
                 'first_lastname' => 'System',
@@ -31,5 +32,9 @@ class AdminUserSeeder extends Seeder
                 'status' => 1,
             ]
         );
+        UserRoles::create([
+            'user_id' => $user->id,
+            'role_id' => 1
+        ]);
     }
 }

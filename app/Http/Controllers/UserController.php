@@ -21,7 +21,7 @@ class UserController extends Controller
 
         try {
 
-            $user = User::with('role')
+            $user = User::with('roles')
                 ->where('email', $validated['email'])
                 ->first();
 
@@ -43,8 +43,7 @@ class UserController extends Controller
 
             $basicUserData = [
                 'id' => $user->id,
-                'role_id' => $user->role_id,
-                'role' => $user->role?->name,
+                'roles' => $user->roles,
                 'ci' => $user->ci,
                 'name' => $user->name,
                 'first_lastname' => $user->first_lastname,
@@ -54,7 +53,6 @@ class UserController extends Controller
                 'status' => $user->status,
             ];
 
-            // ✔ ESTE ES EL TOKEN REAL (SANCTUM)
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
