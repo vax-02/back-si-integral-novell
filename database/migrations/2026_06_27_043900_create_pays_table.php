@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('pays', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id') //quien cobro
+                ->constrained()
+                ->onDelete('cascade');
+
             $table->foreignId('student_id')
                 ->constrained()
                 ->onDelete('cascade');
@@ -21,10 +25,10 @@ return new class extends Migration
                 ->constrained()
                 ->onDelete('cascade');
 
-            $table->integer("amount");
-            $table->integer("discount")->default(0);
+            $table->decimal("amount",10,2);
+            $table->deciaml("discount",10,2)->default(0.00);
             
-            $table->tinyInteger("status")->default(1);
+            $table->boolean("status")->default(1);
 
             $table->timestamps();
         });
