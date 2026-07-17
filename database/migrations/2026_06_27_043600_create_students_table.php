@@ -19,9 +19,6 @@ return new class extends Migration
             $table->foreignId('user_id')
                 ->constrained()
                 ->onDelete('cascade');
-            $table->foreignId('degree_id')
-                ->constrained()
-                ->onDelete('cascade');
 
             $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
 

@@ -17,16 +17,17 @@ return new class extends Migration
                 ->constrained()
                 ->nullable()
                 ->onDelete('cascade');
-
-            $table->string('name');
             $table->enum('type',["Matricula","Mensualidad","Otro"]);
             $table->string('description')->nullable(); //Llenar en caso de type:otro
             $table->year('gestion');
-            $table->enum('semestre',[1,2]); //Semestre 1 o 2
+            $table->enum('semestre',[1,2])->nullable(); //Semestre 1 o 2
 
             $table->decimal('amount', 10, 2);
-            $table->string('name');
             $table->timestamps();
+            $table->unique(
+                ['career_id', 'type', 'gestion', 'semestre'],
+                'concept_unique'
+            );
         });
     }
 

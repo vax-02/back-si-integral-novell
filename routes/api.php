@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CareerController;
+use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
@@ -27,6 +28,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('institutions', InstitutionController::class);
     Route::apiResource('courses', CourseController::class);
+    Route::apiResource('concepts', ConceptController::class);
+
     Route::apiResource('users', UserController::class);
     Route::apiResource('students', StudentController::class);
     Route::apiResource('careers', CareerController::class);

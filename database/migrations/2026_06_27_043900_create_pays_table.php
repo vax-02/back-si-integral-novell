@@ -26,9 +26,9 @@ return new class extends Migration
                 ->onDelete('cascade');
 
             $table->decimal("amount",10,2);
-            $table->deciaml("discount",10,2)->default(0.00);
+            $table->decimal("discount",10,2)->default(0.00);
             
-            $table->boolean("status")->default(1);
+            $table->boolean("status")->default(true);
 
             $table->timestamps();
         });

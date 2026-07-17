@@ -8,7 +8,6 @@ class Concept extends Model
 {
     protected $fillable = [
         'career_id',
-        'name',
         'type',
         'description',
         'gestion',
@@ -19,5 +18,8 @@ class Concept extends Model
     public function pays()
     {
         return $this->hasMany(Pay::class);
+    }
+    public function career(){
+        return $this->belongsTo(Career::class);
     }
 }
