@@ -11,21 +11,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('docentes', function (Blueprint $table) {
+        Schema::create('student_careers', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')
+            $table->foreignId('student_id')
                 ->constrained()
                 ->onDelete('cascade');
 
-            $table->foreignId('degree_id')
+            $table->foreignId('career_id')
                 ->constrained()
                 ->onDelete('cascade');
+            
+            $table->date('enrolled');
+            $table->string('matricula');
+            
+            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
 
-            $table->tinyInteger('cv')->default(0);
-            $table->tinyInteger('professional_title')->default(0);
-            $table->tinyInteger('carnet')->default(0);
-            $table->tinyInteger('certificate')->default(0);
 
+            $table->enum('status',['Activo','Egresado','Suspendido','Retirado'])->default('Activo');
+            
             $table->timestamps();
         });
     }
@@ -35,6 +38,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('docentes');
+        Schema::dropIfExists('student_careers');
     }
 };

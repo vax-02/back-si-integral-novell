@@ -10,9 +10,8 @@ class Career extends Model
 
     public function students()
     {
-        return $this->hasMany(Student::class);
+        return $this->hasMany(StudentCareer::class);
     }
-
     public function subjects()
     {
         return $this->hasMany(Subject::class);

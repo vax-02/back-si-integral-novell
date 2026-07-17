@@ -13,22 +13,13 @@ return new class extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('career_id')
-                ->constrained()
-                ->onDelete('cascade');
             $table->foreignId('user_id')
                 ->constrained()
                 ->onDelete('cascade');
-
-            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
-
-            $table->string('matricula', 100);
             
             $table->tinyInteger('birth_certificate')->default(1);
             $table->tinyInteger('school_diploma')->default(1);
             $table->tinyInteger('carnet')->default(1);
-            
-            $table->tinyInteger('status')->default(1);
             $table->timestamps();
         });
     }

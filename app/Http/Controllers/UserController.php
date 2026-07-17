@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\UserRoles;
 use Auth;
 use Exception;
 use Illuminate\Support\Facades\Crypt;
@@ -112,7 +113,7 @@ class UserController extends Controller
             $perPage = $request->input('per_page', 10);
             $search = $request->input('search');
             
-            $query = User::with('role')->where('id','!=',auth()->user()->id);
+            $query = User::with('roles')->where('id','!=',auth()->user()->id);
             
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -123,10 +124,10 @@ class UserController extends Controller
         
 
             $totalUsers = User::count();
-            $totalAdmins = User::where('role_id', 1)->count();
-            $totalSecretaries = User::where('role_id', 2)->count();
-            $totalDocentes = User::where('role_id', 3)->count();
-            $totalEstudiantes = User::where('role_id', 4)->count();
+            $totalAdmins = UserRoles::where('role_id',1)->count();
+            $totalSecretaries = UserRoles::where('role_id',2)->count();
+            $totalDocentes = UserRoles::where('role_id',3)->count();
+            $totalEstudiantes = UserRoles::where('role_id',4)->count(); 
 
 
             return response()->json([

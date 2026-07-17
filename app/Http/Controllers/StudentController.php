@@ -19,11 +19,10 @@ class StudentController extends Controller
             $query = Student::select([
                 'id',
                 'user_id',
-                'career_id',
-                'status'
             ])->with([
                 'user:id,name,first_lastname,second_lastname,email,ci',
-                'career:id,name'
+                'studentCareers.career:id,name'
+
             ]);
 
             if ($search) {
@@ -35,10 +34,15 @@ class StudentController extends Controller
                       ->orWhere('email', 'like', "%$search%");
                 });
             }
+            $total = Student::count();
 
-            $total    = Student::count();
-            $actives  = Student::where('status', 1)->count();
-            $inactive = Student::where('status', 0)->count();
+            $actives = Student::join('users', 'users.id', '=', 'students.user_id')
+                ->where('users.status', 1)
+                ->count();
+
+            $inactive = Student::join('users', 'users.id', '=', 'students.user_id')
+                ->where('users.status', 0)
+                ->count();
 
             return response()->json([
                 'students' => $query->paginate($perPage),
@@ -48,7 +52,7 @@ class StudentController extends Controller
             ]);
         }catch(\Exception $e){
             return response()->json([
-                'message' => 'Error al obtener estudiantes',
+                'message' => 'Error al obtener estudiantes--'.$e,
             ], 500);
         }
     }

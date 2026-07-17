@@ -33,9 +33,13 @@ class DocenteController extends Controller
             }
 
             $total    = Docente::count();
-            $activos  = Docente::where('status', 1)->count();
-            $inactivos = Docente::where('status', 0)->count();
+            $activos = Docente::whereHas('user', function ($query) {
+                $query->where('status', 1);
+            })->count();
 
+            $inactivos = Docente::whereHas('user', function ($query) {
+                $query->where('status', 0);
+            })->count();
             return response()->json([
                 'docentes'  => $query->paginate($perPage),
                 'total'     => $total,

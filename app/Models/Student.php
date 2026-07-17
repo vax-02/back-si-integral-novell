@@ -18,9 +18,9 @@ class Student extends Model
         'status',
     ];
 
-    public function career()
+    public function studentCareers()
     {
-        return $this->belongsTo(Career::class);
+        return $this->hasMany(StudentCareer::class);
     }
 
     public function user()

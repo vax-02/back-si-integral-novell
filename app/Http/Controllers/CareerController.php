@@ -29,7 +29,7 @@ class CareerController extends Controller
                 'careersActivas' => $careersActivas,
             ]);
         } catch (\Exception $e) {
-            return response()->json('error', 500);
+            return response()->json('error----'.$e, 500);
         }
     }
 
@@ -189,6 +189,24 @@ class CareerController extends Controller
             return response()->json($career);
         } catch (\Exception $e) {
             return response()->json('error', 500);
+        }
+    }
+
+    public function toggleStatus(Career $career)
+    {
+        try {
+            $career->status = !$career->status;
+            $career->save();
+
+            return response()->json([
+                'status' => $career->status,
+                'message' => $career->status ? 'Carrera activada correctamente.' : 'Carrera desactivada correctamente.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'No se pudo cambiar el estado de la carrera.',
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 

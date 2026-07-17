@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
     Route::apiResource('students', StudentController::class);
     Route::apiResource('careers', CareerController::class);
+    Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
     Route::apiResource('docentes', DocenteController::class);
     Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
     Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
