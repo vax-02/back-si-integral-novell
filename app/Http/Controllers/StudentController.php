@@ -20,7 +20,7 @@ class StudentController extends Controller
                 'id',
                 'user_id',
             ])->with([
-                'user:id,name,first_lastname,second_lastname,email,ci',
+                'user:id,name,first_lastname,second_lastname,email,ci,status',
                 'studentCareers.career:id,name'
 
             ]);

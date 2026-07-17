@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Pay;
+use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
 
 class PayController extends Controller
@@ -10,9 +12,48 @@ class PayController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $request->validate([
+            "student_id" => ['required','integer']
+        ]);
+        try{
+            $pays = Pay::with('concept.career')
+                ->where('student_id', $request->student_id)
+                ->get();
+
+            $groupedPays = $pays->groupBy('concept.career.id')
+                ->map(function ($payments) {
+
+                    return [
+                        'career_id' => $payments->first()->concept->career->id,
+                        'career_name' => $payments->first()->concept->career->name,
+                        'payments' => $payments,
+                        'total' => $payments->sum('amount')
+                    ];
+
+                })
+                ->values();
+            return response()->json([
+                'pays' => $groupedPays,
+                
+            ]);
+        }catch(Exception $e){
+
+        }
+    }
+    public function dataCards(){
+        try{
+            $now = Carbon::now();
+            return response()->json([
+                'pays_for_month' => Pay::whereYear('created_at', $now->year)
+                    ->whereMonth('created_at', $now->month)
+                    ->sum('amount'),
+                'total_pays' => Pay::where('status',1)->count()
+            ]);
+        }catch(Exception $e){
+    
+        }
     }
 
     /**

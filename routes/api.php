@@ -6,6 +6,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
 use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\PayController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
@@ -25,10 +26,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('careers/{career}/subjects', [CareerController::class, 'storeSubject']);
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
+    Route::get('pays/cards', [PayController::class,'dataCards']);
 
     Route::apiResource('institutions', InstitutionController::class);
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('concepts', ConceptController::class);
+    Route::apiResource('pays', PayController::class);
+
 
     Route::apiResource('users', UserController::class);
     Route::apiResource('students', StudentController::class);
