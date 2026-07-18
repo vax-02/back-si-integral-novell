@@ -24,6 +24,8 @@ return new class extends Migration
             $table->foreignId('concept_id')
                 ->constrained()
                 ->onDelete('cascade');
+            
+            $table->string("description")->nullable();
 
             $table->decimal("amount",10,2);
             $table->decimal("discount",10,2)->default(0.00);

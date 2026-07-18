@@ -12,11 +12,12 @@ class Pay extends Model
         'concept_id',
         'amount',
         'discount',
+        'description',
         'status',
     ];
 
     public function casher(){
-        return $this->belogsTo(User::class);
+        return $this->belongsTo(User::class,'user_id');
     }
     public function student()
     {

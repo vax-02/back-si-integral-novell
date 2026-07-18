@@ -16,10 +16,14 @@ use Illuminate\Support\Facades\Route;
 Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
 Route::post('login', [UserController::class, 'login']);
+
+// Receipt route outside auth middleware (uses token query param)
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('users/change-password', [UserController::class, 'updatePassword']);
-
-
+    
+    
+    Route::get('pays/{pay}/receipt', [PayController::class,'receipt']);
     Route::get('careers/simple', [CareerController::class, 'simple']);
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);
     Route::post('careers/import-confirm', [CareerController::class, 'importConfirm']);
