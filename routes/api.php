@@ -6,7 +6,9 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
 use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\ParallelController;
 use App\Http\Controllers\PayController;
+use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
@@ -31,7 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
     Route::get('pays/cards', [PayController::class,'dataCards']);
-
+    
+    Route::apiResource('parallels/', ParallelController::class);
     Route::apiResource('institutions', InstitutionController::class);
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('concepts', ConceptController::class);
@@ -48,6 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
     Route::get('subjects', [SubjectController::class, 'index']);
     Route::get('degrees', [DegreeController::class, 'index']);
+    Route::get('subjects/{career}/by-career', [ScheduleController::class, 'subjectsByCareer']);
+    Route::get('schedules/parallel/{parallel}', [ScheduleController::class, 'getByParallel']);
+    Route::post('schedules/save', [ScheduleController::class, 'save']);
 
     Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);

@@ -11,15 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('courses', function (Blueprint $table) {
+        Schema::create('parallels', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('career_id')
+
+            $table->foreignId('course_id')
                 ->constrained()
                 ->onDelete('cascade');
-            $table->string('name');
-            $table->string('level');
 
-
+            $table->string('paralelo',2);
+            $table->integer('limit');
+            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
             $table->timestamps();
         });
     }
@@ -29,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('courses');
+        Schema::dropIfExists('parallels');
     }
 };

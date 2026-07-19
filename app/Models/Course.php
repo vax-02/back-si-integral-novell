@@ -8,10 +8,8 @@ class Course extends Model
 {
     protected $fillable = [
         'career_id',
-        'gestion',
-        'paralelo',
-        'limit',
-        'turno',
+        'name',
+        'level',
     ];
 
     public function career()
@@ -22,5 +20,8 @@ class Course extends Model
     public function qualifications()
     {
         return $this->hasMany(Qualification::class);
+    }
+    public function parallels(){
+        return $this->hasMany(Parallel::class);
     }
 }

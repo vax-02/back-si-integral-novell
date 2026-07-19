@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Career;
+use App\Models\Course;
 use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Ramsey\Uuid\Type\Integer;
 
 class CareerController extends Controller
 {
@@ -88,7 +90,6 @@ class CareerController extends Controller
         $data = $this->validateImportRequest($request);
         $rows = $this->loadImportRows($request->file('file'));
         $preview = $this->buildPreviewRows($rows);
-
         if (!empty($preview['errors']) || collect($preview['rows'])->contains(fn ($row) => ! $row['valid'])) {
             return response()->json([
                 'message' => 'El archivo contiene errores de coherencia.',
@@ -123,6 +124,16 @@ class CareerController extends Controller
 
                 $createdSubjectsBySigla[$row['sigla']] = $subject->id;
             }
+            //Crear los cursos
+            $cantidad = $data['type'] * $data['duration'];
+
+            for ($i = 1; $i <= $cantidad; $i++) {
+                Course::create([
+                    'career_id' => $career->id,
+                    'name' => $this->numberLiteral($i) . ($data['type'] == 1 ? ' Año' : ' Semestre'),
+                    'level' => $i
+                ]);
+            }
 
             DB::commit();
 
@@ -138,6 +149,18 @@ class CareerController extends Controller
                 'message' => 'No se pudo guardar la importación.',
                 'error' => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function NumberLiteral($number){
+        switch($number){
+            case 1: return 'Primer';
+            case 2: return 'Segundo';
+            case 3: return 'Tercero';
+            case 4: return 'Cuarto';
+            case 5: return 'Quinto';
+            case 6: return 'Sexto';
+            default: return '...';
         }
     }
 
@@ -290,8 +313,8 @@ class CareerController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'duration' => 'required|in:1 año,2 años,3 años',
-            'type' => 'required|in:Semestral,Anual',
+            'duration' => 'required|in:1,2,3',
+            'type' => 'required|in:1,2', //anual semestral
             'file' => 'required|file|mimes:xlsx,xls',
         ]);
 

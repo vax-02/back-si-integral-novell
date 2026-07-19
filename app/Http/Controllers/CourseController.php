@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
+use App\Models\Parallel;
+use App\Models\Student;
 use Exception;
 use Illuminate\Http\Request;
 
@@ -17,27 +19,32 @@ class CourseController extends Controller
             $perPage = $request->input('per_page', 10);
             $search  = $request->input('search');
 
-            $query = Course::with('career');
-
+            $query = Course::with('career')->withCount('parallels');
             if ($search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('gestion',  'like', "%$search%")
-                      ->orWhere('paralelo', 'like', "%$search%")
-                      ->orWhere('turno',    'like', "%$search%")
-                      ->orWhereHas('career', function ($qc) use ($search) {
-                          $qc->where('name', 'like', "%$search%");
-                      });
+                    $q->where('name', 'like', "%$search%")
+                    ->orWhereHas('career', function ($qc) use ($search) {
+                        $qc->where('name', 'like', "%$search%");
+                    });
                 });
             }
 
+            $courses = $query->paginate($perPage);
+            
             $total = Course::count();
+            $totalLimit = Parallel::sum('limit');
+            $totalStudentsForCareer = Student::whereHas('user', function($q) {
+                $q->where('status', 1);
+            })->count();
 
             return response()->json([
-                'courses' => $query->paginate($perPage),
-                'total'   => $total,
+                'courses' => $courses,
+                'total' => $total,
+                'total_limit' => $totalLimit,
+                'total_students' => $totalStudentsForCareer,
             ]);
         } catch (Exception $exception) {
-            return $this->errorResponse($exception);
+            return response()->json([],500);
         }
     }
 
