@@ -6,6 +6,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
 use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ParallelController;
 use App\Http\Controllers\PayController;
 use App\Http\Controllers\ScheduleController;
@@ -61,6 +62,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('schedules', [ScheduleController::class, 'store']);
     Route::put('schedules/{id}', [ScheduleController::class, 'update']);
     Route::delete('schedules/{id}', [ScheduleController::class, 'destroy']);
+    
+    Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
+    Route::get('materials', [MaterialController::class, 'index']);
+    Route::post('materials', [MaterialController::class, 'store']);
+    Route::delete('materials/{id}', [MaterialController::class, 'destroy']);
+    Route::get('materials/{id}/download', [MaterialController::class, 'download']);
 
     Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);

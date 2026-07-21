@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Docente;
+use App\Models\Parallel;
 use App\Models\User;
 use App\Models\UserRoles;
 use Exception;
@@ -200,6 +201,50 @@ class DocenteController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             return response()->json([],500);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  MY SUBJECTS  GET /api/docente/my-subjects
+    //  Devuelve las materias asignadas al docente logueado con detalles
+    // ─────────────────────────────────────────────────────────────
+    public function mySubjects(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $docente = Docente::where('user_id', $user->id)->first();
+
+            if (!$docente) {
+                return response()->json(['subjects' => []]);
+            }
+
+            $assignments = $docente->subjects()
+                ->wherePivot('status', true)
+                ->with(['career'])
+                ->get()
+                ->map(function ($subject) use ($docente) {
+                    $parallel = Parallel::with('course.career')
+                        ->find($subject->pivot->parallel_id);
+                    
+                    return [
+                        'id'            => $subject->id,
+                        'name'          => $subject->name,
+                        'sigla'         => $subject->sigla,
+                        'level'         => $subject->level,
+                        'career'        => $subject->career ? $subject->career->name : ($parallel->course->career->name ?? '—'),
+                        'parallel_id'   => $subject->pivot->parallel_id,
+                        'parallel_name' => $parallel ? $parallel->paralelo : '—',
+                        'turno'         => $parallel ? $parallel->turno : '—',
+                        'course_name'   => $parallel && $parallel->course ? $parallel->course->name : '—',
+                        'course_level'  => $parallel && $parallel->course ? $parallel->course->level : null,
+                    ];
+                });
+
+            return response()->json([
+                'subjects' => $assignments,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
