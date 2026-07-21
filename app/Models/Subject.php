@@ -28,4 +28,24 @@ class Subject extends Model
     {
         return $this->belongsTo(self::class, 'subject_id');
     }
+
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
+
+    public function docentes()
+    {
+        return $this->belongsToMany(Docente::class, 'docente_subject')
+                    ->withPivot(['parallel_id', 'status'])
+                    ->withTimestamps();
+    }
+
+    public function activeDocentes()
+    {
+        return $this->belongsToMany(Docente::class, 'docente_subject')
+                    ->withPivot(['parallel_id', 'status'])
+                    ->wherePivot('status', true)
+                    ->withTimestamps();
+    }
 }

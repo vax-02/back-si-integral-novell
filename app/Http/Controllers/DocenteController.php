@@ -190,7 +190,6 @@ class DocenteController extends Controller
             $newStatus = $docente->status ? 0 : 1;
 
             DB::beginTransaction();
-            $docente->update(['status' => $newStatus]);
             $docente->user->update(['status' => $newStatus]);
             DB::commit();
 

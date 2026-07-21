@@ -50,6 +50,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
     Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
     Route::get('subjects', [SubjectController::class, 'index']);
+    Route::get('subjects/{subject}/detail', [SubjectController::class, 'detail']);
+    Route::get('subjects/{subject}/history', [SubjectController::class, 'history']);
+    Route::post('subjects/{subject}/assign-docente', [SubjectController::class, 'assignDocente']);
+    Route::post('subjects/{subject}/remove-docente', [SubjectController::class, 'removeDocente']);
     Route::get('degrees', [DegreeController::class, 'index']);
     Route::get('subjects/{career}/by-career', [ScheduleController::class, 'subjectsByCareer']);
     Route::get('schedules/parallel/{parallel}', [ScheduleController::class, 'getByParallel']);

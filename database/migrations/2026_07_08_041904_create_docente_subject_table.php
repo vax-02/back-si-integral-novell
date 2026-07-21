@@ -13,10 +13,17 @@ return new class extends Migration
             $table->foreignId('docente_id')
                 ->constrained()
                 ->onDelete('cascade');
+
             $table->foreignId('subject_id')
                 ->constrained()
                 ->onDelete('cascade');
-            $table->unique(['docente_id', 'subject_id']);
+            
+            $table->foreignId('parallel_id')
+                ->constrained()
+                ->onDelete('cascade');
+
+            $table->boolean('status')->default(true);
+            
             $table->timestamps();
         });
     }
