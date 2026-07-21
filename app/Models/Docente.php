@@ -13,7 +13,6 @@ class Docente extends Model
         'professional_title',
         'carnet',
         'certificate',
-        'status',
     ];
 
     public function user()

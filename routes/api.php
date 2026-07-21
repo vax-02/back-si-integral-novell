@@ -54,6 +54,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('subjects/{career}/by-career', [ScheduleController::class, 'subjectsByCareer']);
     Route::get('schedules/parallel/{parallel}', [ScheduleController::class, 'getByParallel']);
     Route::post('schedules/save', [ScheduleController::class, 'save']);
+    Route::post('schedules', [ScheduleController::class, 'store']);
+    Route::put('schedules/{id}', [ScheduleController::class, 'update']);
+    Route::delete('schedules/{id}', [ScheduleController::class, 'destroy']);
 
     Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);

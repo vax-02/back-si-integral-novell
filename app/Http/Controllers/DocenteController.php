@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Docente;
 use App\Models\User;
+use App\Models\UserRoles;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,14 +48,10 @@ class DocenteController extends Controller
                 'inactivos' => $inactivos,
             ]);
         } catch (Exception $e) {
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  STORE  POST /api/docentes
-    //  Crea el User (role_id=3 Docente) y luego el Docente
-    // ─────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
         $request->validate([
@@ -84,10 +81,12 @@ class DocenteController extends Controller
                 'email'          => $request->email,
                 'cellphone'      => $request->cellphone,
                 'password'       => Hash::make($request->ci), // contraseña por defecto: el CI
-                'role_id'        => 3, // Docente
-                'status'         => 1,
             ]);
 
+            UserRoles::create([
+                'user_id' => $user->id,
+                'role_id' => 3
+            ]);
             $docente = Docente::create([
                 'user_id'           => $user->id,
                 'degree_id'         => $request->degree_id,
@@ -95,7 +94,6 @@ class DocenteController extends Controller
                 'professional_title'=> $request->boolean('professional_title', false),
                 'carnet'            => $request->boolean('carnet', false),
                 'certificate'       => $request->boolean('certificate', false),
-                'status'            => 1,
             ]);
 
             DB::commit();
@@ -106,7 +104,7 @@ class DocenteController extends Controller
             ], 201);
         } catch (Exception $e) {
             DB::rollBack();
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
@@ -118,7 +116,7 @@ class DocenteController extends Controller
         try {
             return response()->json($docente->load(['user', 'degree', 'subjects.career']));
         } catch (Exception $e) {
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
@@ -179,7 +177,7 @@ class DocenteController extends Controller
             ]);
         } catch (Exception $e) {
             DB::rollBack();
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
@@ -202,7 +200,7 @@ class DocenteController extends Controller
             ]);
         } catch (Exception $e) {
             DB::rollBack();
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
@@ -224,7 +222,7 @@ class DocenteController extends Controller
                 'subjects' => $docente->subjects()->with('career')->get(),
             ]);
         } catch (Exception $e) {
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
@@ -241,7 +239,7 @@ class DocenteController extends Controller
                 'subjects' => $docente->subjects()->with('career')->get(),
             ]);
         } catch (Exception $e) {
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 
@@ -254,7 +252,7 @@ class DocenteController extends Controller
             $docente->delete();
             return response()->json(['message' => 'Docente eliminado exitosamente.']);
         } catch (Exception $e) {
-            return $this->errorResponse($e);
+            return response()->json([],500);
         }
     }
 }

@@ -102,4 +102,86 @@ class ScheduleController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Crear un nuevo item de horario individual
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'parallel_id' => 'required|integer|exists:parallels,id',
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'day' => 'required|string|max:20',
+            'start_time' => 'required|string',
+            'end_time' => 'required|string',
+        ]);
+
+        try {
+            $schedule = Schedule::create([
+                'parallel_id' => $request->parallel_id,
+                'subject_id' => $request->subject_id,
+                'day' => $request->day,
+                'start_time' => $request->start_time,
+                'end_time' => $request->end_time,
+            ]);
+
+            $schedule->load('subject:id,sigla,name');
+
+            return response()->json([
+                'message' => 'Horario agregado correctamente.',
+                'schedule' => $schedule,
+            ], 201);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Actualizar un item de horario individual
+     */
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'day' => 'required|string|max:20',
+            'start_time' => 'required|string',
+            'end_time' => 'required|string',
+        ]);
+
+        try {
+            $schedule = Schedule::findOrFail($id);
+            $schedule->update([
+                'subject_id' => $request->subject_id,
+                'day' => $request->day,
+                'start_time' => $request->start_time,
+                'end_time' => $request->end_time,
+            ]);
+
+            $schedule->load('subject:id,sigla,name');
+
+            return response()->json([
+                'message' => 'Horario actualizado correctamente.',
+                'schedule' => $schedule,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Eliminar un item de horario
+     */
+    public function destroy($id)
+    {
+        try {
+            $schedule = Schedule::findOrFail($id);
+            $schedule->delete();
+
+            return response()->json([
+                'message' => 'Horario eliminado correctamente.',
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
