@@ -6,6 +6,8 @@ use App\Models\Parallel;
 use App\Models\Student;
 use App\Models\StudentCareer;
 use App\Models\StudentParallel;
+use App\Models\StudentSubject;
+use App\Models\Subject;
 use App\Models\User;
 use App\Models\UserRoles;
 use Illuminate\Support\Facades\Hash;
@@ -137,6 +139,23 @@ class StudentController extends Controller
                 'parallel_id' => $parallel->id,
                 'turno' => $parallel->turno,
             ]);
+
+
+            //Asignarle materias
+            $subjets = Subject::where('career_id',$validated['career_id'])->orderBy('level')->get();
+            foreach($subjets as $s){
+                if($s->level == 1){
+                    StudentSubject::create([
+                        'student_id' => $student->id,
+                        'subject_id' => $s->id,
+                    ]); 
+                }
+                StudentSubject::create([
+                    'student_id' => $student->id,
+                    'subject_id' => $s->id,
+                    'status' => 'Falta'
+                ]);
+            }
 
             DB::commit();
 
@@ -302,6 +321,60 @@ class StudentController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'error' => 'Error al actualizar paralelo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function addCareer(Request $request)
+    {
+        $validated = $request->validate([
+            'student_id'  => ['required', 'exists:students,id'],
+            'career_id'   => ['required', 'exists:careers,id'],
+            'parallel_id' => ['required', 'exists:parallels,id'],
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $student = Student::findOrFail($validated['student_id']);
+            $user = User::findOrFail($student->user_id);
+
+            // Verificar si ya está registrado
+            $exists = StudentCareer::where('student_id', $validated['student_id'])
+                ->where('career_id', $validated['career_id'])
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'message' => 'El estudiante ya está inscrito en esta carrera.'
+                ], 409);
+            }
+
+            $studentCareer = StudentCareer::create([
+                'student_id' => $validated['student_id'],
+                'career_id'  => $validated['career_id'],
+                'enrolled'   => now(),
+                'matricula'  => $user->ci,
+            ]);
+
+            $parallel = Parallel::findOrFail($request->parallel_id);
+            StudentParallel::create([
+                'student_id' => $request->student_id,
+                'parallel_id' => $request->parallel_id,
+                'turno'=> $parallel->turno
+            ]);
+            
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Carrera asignada correctamente.',
+                'data' => $studentCareer
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Ocurrió un error al registrar la carrera.',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('pays', PayController::class);
 
 
+    Route::post('student-careers',[StudentController::class, 'addCareer']);
     Route::apiResource('users', UserController::class);
     Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);
     Route::post('students/{student}/reinstate/{career}', [StudentController::class, 'reinstate']);
