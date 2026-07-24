@@ -235,6 +235,7 @@ class DocenteController extends Controller
                         'parallel_id'   => $subject->pivot->parallel_id,
                         'parallel_name' => $parallel ? $parallel->paralelo : '—',
                         'turno'         => $parallel ? $parallel->turno : '—',
+                        'course_id'     => $parallel && $parallel->course ? $parallel->course->id : null,
                         'course_name'   => $parallel && $parallel->course ? $parallel->course->name : '—',
                         'course_level'  => $parallel && $parallel->course ? $parallel->course->level : null,
                     ];

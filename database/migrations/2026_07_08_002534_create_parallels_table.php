@@ -21,6 +21,8 @@ return new class extends Migration
             $table->string('paralelo',2);
             $table->integer('limit');
             $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
+            $table->boolean('status')->default(true);
+
             $table->timestamps();
         });
     }

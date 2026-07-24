@@ -9,9 +9,6 @@ class Student extends Model
     protected $fillable = [
         'career_id',
         'user_id',
-        'degree_id',
-        'turno',
-        'matricula',
         'birth_certificate',
         'school_diploma',
         'carnet',

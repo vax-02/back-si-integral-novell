@@ -11,20 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('student_careers', function (Blueprint $table) {
+        Schema::create('student_parallels', function (Blueprint $table) {
             $table->id();
+            
             $table->foreignId('student_id')
                 ->constrained()
                 ->onDelete('cascade');
-
-            $table->foreignId('career_id')
+            
+            $table->foreignId('parallel_id')
                 ->constrained()
                 ->onDelete('cascade');
             
-            $table->date('enrolled');
-            $table->string('matricula');
-            $table->enum('status',['Activo','Egresado','Suspendido','Retirado'])->default('Activo');
+            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
             
+            $table->boolean('status')->default(true);
             $table->timestamps();
         });
     }
@@ -34,6 +34,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('student_careers');
+        Schema::dropIfExists('student_parallels');
     }
 };

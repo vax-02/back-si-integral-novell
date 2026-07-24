@@ -8,6 +8,7 @@ use App\Models\Parallel;
 use Illuminate\Http\Request;
 use Exception;
 use Illuminate\Support\Facades\Storage;
+use Ramsey\Uuid\Type\Integer;
 
 class MaterialController extends Controller
 {
@@ -50,7 +51,7 @@ class MaterialController extends Controller
             'subject_id'    => 'required|integer|exists:subjects,id',
             'title'         => 'required|string|max:255',
             'description'   => 'nullable|string|max:1000',
-            'file'          => 'required|file|max:102400', // 100MB max
+            'file'          => 'required|file|mimes:doc,docx,xls,xlsx,ppt,pptx|max:20480',
             'all_parallels' => 'boolean',
             'parallel_ids'  => 'required_without:all_parallels|array',
             'parallel_ids.*' => 'integer|exists:parallels,id',
@@ -126,16 +127,19 @@ class MaterialController extends Controller
     /**
      * Descargar un material
      */
-    public function download($id)
+    public function download(Material $material)
     {
         try {
-            $material = Material::findOrFail($id);
+
+            $material = Material::findOrFail($material->id);
 
             if (!Storage::disk('public')->exists($material->file_path)) {
                 return response()->json(['error' => 'Archivo no encontrado'], 404);
             }
 
-            return Storage::disk('public')->download($material->file_path, $material->file_name);
+     //       return Storage::disk('public')->download($material->file_path, $material->file_name);
+            return response()->download(storage_path('app/public/' . $material->file_path),$material->file_name);
+
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

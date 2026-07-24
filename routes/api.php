@@ -6,6 +6,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
 use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\GradeController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ParallelController;
 use App\Http\Controllers\PayController;
@@ -34,7 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
     Route::get('pays/cards', [PayController::class,'dataCards']);
+    Route::get('parallels/{id}/first-course', [ParallelController::class,'getFirstCourse']);
     
+
     Route::apiResource('parallels/', ParallelController::class);
     Route::apiResource('institutions', InstitutionController::class);
     Route::apiResource('courses', CourseController::class);
@@ -43,6 +46,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     Route::apiResource('users', UserController::class);
+    Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);
+    Route::post('students/{student}/reinstate/{career}', [StudentController::class, 'reinstate']);
+    Route::put('students/{student}/parallel', [StudentController::class, 'updateParallel']);
     Route::apiResource('students', StudentController::class);
     Route::apiResource('careers', CareerController::class);
     Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
@@ -66,8 +72,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
     Route::get('materials', [MaterialController::class, 'index']);
     Route::post('materials', [MaterialController::class, 'store']);
+    Route::get('materials/{material}/download', [MaterialController::class, 'download']);
     Route::delete('materials/{id}', [MaterialController::class, 'destroy']);
-    Route::get('materials/{id}/download', [MaterialController::class, 'download']);
+
+    Route::get('grades/students/{parallel}', [GradeController::class, 'getStudents']);
+    Route::post('grades/save', [GradeController::class, 'saveGrade']);
+    Route::post('grades/columns', [GradeController::class, 'saveColumn']);
+    Route::put('grades/columns/{id}', [GradeController::class, 'updateColumn']);
+    Route::delete('grades/columns/{id}', [GradeController::class, 'deleteColumn']);
 
     Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);

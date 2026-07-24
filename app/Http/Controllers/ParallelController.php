@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\Parallel;
 use Exception;
 use Illuminate\Http\Request;
@@ -76,6 +77,29 @@ class ParallelController extends Controller
             return response()->json([
                 'error' => 'Error al crear el paralelo',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getFirstCourse($id)
+    {
+        try {
+            $course = Course::where('career_id', $id)
+                ->where('level', 1)
+                ->first();
+
+            if (!$course) {
+                return response()->json([
+                    'message' => 'No se encontró un curso de nivel 1 para esta carrera.'
+                ], 404);
+            }
+            $parallels = Parallel::where('course_id', $course->id)->where('status',1)->get();
+            return response()->json([
+                'parallels' => $parallels
+            ], 200);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error interno del servidor.', 
             ], 500);
         }
     }
