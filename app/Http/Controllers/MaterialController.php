@@ -51,9 +51,9 @@ class MaterialController extends Controller
             'subject_id'    => 'required|integer|exists:subjects,id',
             'title'         => 'required|string|max:255',
             'description'   => 'nullable|string|max:1000',
-            'file'          => 'required|file|mimes:doc,docx,xls,xlsx,ppt,pptx|max:20480',
-            'all_parallels' => 'boolean',
-            'parallel_ids'  => 'required_without:all_parallels|array',
+            'file'          => 'required|file|mimes:jpg,png,pdf,doc,docx,xls,xlsx,ppt,pptx|max:20480',
+            'all_parallels' => 'nullable|in:0,1,true,false,on,off',
+            'parallel_ids'  => 'nullable|array',
             'parallel_ids.*' => 'integer|exists:parallels,id',
         ]);
 
