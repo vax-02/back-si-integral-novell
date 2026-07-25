@@ -13,6 +13,8 @@ use App\Http\Controllers\PayController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentPensumController;
+use App\Http\Controllers\StudentScheduleController;
+use App\Http\Controllers\StudentSubjectController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
 use App\Models\Institution;
@@ -72,6 +74,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('schedules/{id}', [ScheduleController::class, 'destroy']);
     
     Route::get('student/my-pensum', [StudentPensumController::class, 'myPensum']);
+    Route::get('student/my-schedule', [StudentScheduleController::class, 'mySchedule']);
+    Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
     Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
     Route::get('materials', [MaterialController::class, 'index']);
     Route::post('materials', [MaterialController::class, 'store']);

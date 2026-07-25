@@ -56,8 +56,8 @@ class StudentPensumController extends Controller
                 $levelLabels = [];
                 $cantidadNiveles = (int)$type * (int)$duration;
                 for ($i = 1; $i <= $cantidadNiveles; $i++) {
-                    $label = $this->numberLiteral($i);
-                    if ($type == 1) {
+                    $label = $this->numberLiteral((int)$i);
+                    if ((int) $type == 1) {
                         $levelLabels[$i] = $label . ' Año';
                     } else {
                         $levelLabels[$i] = $label . ' Semestre';
@@ -107,7 +107,7 @@ class StudentPensumController extends Controller
         }
     }
 
-    private function numberLiteral($number)
+    private function numberLiteral(int $number)
     {
         switch ($number) {
             case 1: return 'Primer';
