@@ -9,8 +9,10 @@ class Qualification extends Model
     protected $fillable = [
         'student_id',
         'course_id',
+        'parallel_id',
         'subject_id',
         'qualification',
+        'final_grade',
     ];
 
     public function student()
@@ -23,8 +25,18 @@ class Qualification extends Model
         return $this->belongsTo(Course::class);
     }
 
+    public function parallel()
+    {
+        return $this->belongsTo(Parallel::class);
+    }
+
     public function subject()
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function details()
+    {
+        return $this->hasMany(QualificationDetail::class);
     }
 }
