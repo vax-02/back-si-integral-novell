@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CareerController;
 use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\CourseController;
@@ -38,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('careers/{career}/subjects', [CareerController::class, 'storeSubject']);
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
+    Route::get('dashboard', [DashboardController::class, 'index']);
     Route::get('pays/cards', [PayController::class,'dataCards']);
     Route::get('parallels/{id}/first-course', [ParallelController::class,'getFirstCourse']);
     
