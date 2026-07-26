@@ -68,10 +68,16 @@ class GradeController extends Controller
                 ];
             });
 
+            // Verificar si todas las qualifications están publicadas
+            $totalQualifications = $qualifications->count();
+            $publishedQualifications = $qualifications->filter(fn($q) => $q->published)->count();
+            $allPublished = $totalQualifications > 0 && $totalQualifications === $publishedQualifications;
+
             return response()->json([
                 'students' => $studentsData,
                 'columns' => $columns,
                 'parallel' => $parallel->load('course.career'),
+                'published' => $allPublished,
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -199,6 +205,54 @@ class GradeController extends Controller
             $column->delete();
 
             return response()->json(['message' => 'Columna eliminada.']);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Publicar notas de una materia+paralelo
+     */
+    public function publish(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'parallel_id' => 'required|integer|exists:parallels,id',
+        ]);
+
+        try {
+            Qualification::where('subject_id', $request->subject_id)
+                ->where('parallel_id', $request->parallel_id)
+                ->update(['published' => true]);
+
+            return response()->json([
+                'message' => 'Notas publicadas correctamente.',
+                'published' => true,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Despublicar notas de una materia+paralelo
+     */
+    public function unpublish(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'parallel_id' => 'required|integer|exists:parallels,id',
+        ]);
+
+        try {
+            Qualification::where('subject_id', $request->subject_id)
+                ->where('parallel_id', $request->parallel_id)
+                ->update(['published' => false]);
+
+            return response()->json([
+                'message' => 'Notas despublicadas correctamente.',
+                'published' => false,
+            ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

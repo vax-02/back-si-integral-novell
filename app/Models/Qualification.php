@@ -13,6 +13,11 @@ class Qualification extends Model
         'subject_id',
         'qualification',
         'final_grade',
+        'published',
+    ];
+
+    protected $casts = [
+        'published' => 'boolean',
     ];
 
     public function student()

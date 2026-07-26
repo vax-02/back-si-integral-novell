@@ -14,6 +14,7 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentPensumController;
 use App\Http\Controllers\StudentScheduleController;
+use App\Http\Controllers\StudentGradeController;
 use App\Http\Controllers\StudentSubjectController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
@@ -76,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('student/my-pensum', [StudentPensumController::class, 'myPensum']);
     Route::get('student/my-schedule', [StudentScheduleController::class, 'mySchedule']);
     Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
+    Route::get('student/my-grades', [StudentGradeController::class, 'myGrades']);
     Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
     Route::get('materials', [MaterialController::class, 'index']);
     Route::post('materials', [MaterialController::class, 'store']);
@@ -84,6 +86,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('grades/students/{parallel}', [GradeController::class, 'getStudents']);
     Route::post('grades/save', [GradeController::class, 'saveGrade']);
+    Route::post('grades/publish', [GradeController::class, 'publish']);
+    Route::post('grades/unpublish', [GradeController::class, 'unpublish']);
     Route::post('grades/columns', [GradeController::class, 'saveColumn']);
     Route::put('grades/columns/{id}', [GradeController::class, 'updateColumn']);
     Route::delete('grades/columns/{id}', [GradeController::class, 'deleteColumn']);
