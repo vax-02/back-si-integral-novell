@@ -16,9 +16,6 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    /**
-     * Obtener datos agregados para el dashboard del home.
-     */
     public function index()
     {
         try {
@@ -73,13 +70,18 @@ class DashboardController extends Controller
                 ->count();
 
             // ──────────────────────────────────────────────
-            // 5. KPIs generales
+            // 3. KPIs generales
             // ──────────────────────────────────────────────
-            $totalStudents = Student::count();
-            $totalDocentes = Docente::count();
-            $totalCareers = Career::count();
+            $totalStudents = Student::whereHas('user', function ($q) {
+                $q->where('status', 1);
+            })->count();
+
+            $totalDocentes = Docente::whereHas('user', function ($q){
+                $q->where('status', 1);
+            })->count();
+            $totalCareers = Career::where('status',1)->count();
             $totalSubjects = Subject::count();
-            $totalParallels = Parallel::count();
+            $totalParallels = Parallel::where('status',1)->count();
 
             return response()->json([
                 'kpis' => [
@@ -99,7 +101,7 @@ class DashboardController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error al obtener datos del dashboard',
-                'error' => $e->getMessage(),
+                //'error' => $e->getMessage(),
             ], 500);
         }
     }
