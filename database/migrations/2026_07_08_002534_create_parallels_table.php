@@ -23,6 +23,7 @@ return new class extends Migration
             $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
             $table->boolean('status')->default(true);
 
+            $table->unique(['course_id', 'paralelo', 'turno']);
             $table->timestamps();
         });
     }

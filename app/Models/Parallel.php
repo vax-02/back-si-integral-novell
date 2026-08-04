@@ -22,4 +22,8 @@ class Parallel extends Model
     {
         return $this->hasMany(Schedule::class);
     }
+    public function students()
+    {
+        return $this->hasMany(StudentParallel::class);
+    }
 }

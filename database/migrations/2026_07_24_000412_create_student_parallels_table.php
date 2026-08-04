@@ -21,9 +21,7 @@ return new class extends Migration
             $table->foreignId('parallel_id')
                 ->constrained()
                 ->onDelete('cascade');
-            
-            $table->enum('turno', ['Mañana', 'Tarde','Noche'])->default('Mañana');
-            
+                        
             $table->boolean('status')->default(true);
             $table->timestamps();
         });

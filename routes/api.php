@@ -30,8 +30,8 @@ Route::post('login', [UserController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('users/change-password', [UserController::class, 'updatePassword']);
-    
-    
+
+
     Route::get('pays/{pay}/receipt', [PayController::class,'receipt']);
     Route::get('careers/simple', [CareerController::class, 'simple']);
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);
@@ -42,24 +42,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::get('pays/cards', [PayController::class,'dataCards']);
     Route::get('parallels/{id}/first-course', [ParallelController::class,'getFirstCourse']);
-    
+    Route::put('parallels/{parallel}/toggle-status', [ParallelController::class,'toggleStatus']);
 
-    Route::apiResource('parallels/', ParallelController::class);
+
+    Route::apiResource('parallels', ParallelController::class);
     Route::apiResource('institutions', InstitutionController::class);
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('concepts', ConceptController::class);
     Route::apiResource('pays', PayController::class);
+    Route::apiResource('users', UserController::class);
+    Route::apiResource('students', StudentController::class);
+    Route::apiResource('careers', CareerController::class);
+    Route::apiResource('docentes', DocenteController::class);
 
 
     Route::post('student-careers',[StudentController::class, 'addCareer']);
-    Route::apiResource('users', UserController::class);
     Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);
     Route::post('students/{student}/reinstate/{career}', [StudentController::class, 'reinstate']);
     Route::put('students/{student}/parallel', [StudentController::class, 'updateParallel']);
-    Route::apiResource('students', StudentController::class);
-    Route::apiResource('careers', CareerController::class);
     Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
-    Route::apiResource('docentes', DocenteController::class);
     Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
     Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
     Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
@@ -75,7 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('schedules', [ScheduleController::class, 'store']);
     Route::put('schedules/{id}', [ScheduleController::class, 'update']);
     Route::delete('schedules/{id}', [ScheduleController::class, 'destroy']);
-    
+
     Route::get('student/my-pensum', [StudentPensumController::class, 'myPensum']);
     Route::get('student/my-schedule', [StudentScheduleController::class, 'mySchedule']);
     Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
@@ -97,7 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
 });
-    
+
 Route::get('/zip-test', function () {
     return [
         'php_binary'      => PHP_BINARY,

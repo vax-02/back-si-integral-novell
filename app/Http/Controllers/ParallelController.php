@@ -15,8 +15,17 @@ class ParallelController extends Controller
     public function index(Request $request)
     {
         try{
-            $parallels = Parallel::where('course_id',$request->courseId)->get();
-            $totalCapacity = $parallels->sum('limit'); // O el nombre que tenga el campo
+            //$parallels = Parallel::where('course_id',$request->courseId)->get();
+            //$parallels = Parallel::where('course_id', $request->courseId)->withCount('students')->get();
+            $parallels = Parallel::where('course_id', $request->courseId)
+                ->withCount([
+                    'students as students_count' => function ($query) {
+                        $query->where('status', true);
+                        // o ->where('status', 1);
+                    }
+                ])
+                ->get();
+            $totalCapacity = $parallels->sum('limit');
 
             return response()->json([
                 'summary' => [
@@ -51,28 +60,18 @@ class ParallelController extends Controller
                 'turno' => ['required', 'in:Mañana,Tarde,Noche']
             ]);
 
-            $existingParallel = Parallel::where('course_id', $request->course_id)
-                ->where('paralelo', $request->parallel)
-                ->first();
-
-            if ($existingParallel) {
-                return response()->json([
-                    'error' => 'Ya existe un paralelo con esa letra para este curso',
-                    'parallel' => $request->parallel
-                ], 422);
-            }
             $parallel = Parallel::create([
                 'course_id' => $request->course_id,
                 'paralelo' => $request->parallel,
                 'limit' => $request->limit,
                 'turno' => $request->turno
             ]);
-            
+
             return response()->json([
                 'message' => 'Paralelo creado correctamente',
                 'parallel' => $parallel
             ], 201);
-            
+
         }catch(Exception $e){
             return response()->json([
                 'error' => 'Error al crear el paralelo',
@@ -99,7 +98,7 @@ class ParallelController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Error interno del servidor.', 
+                'message' => 'Error interno del servidor.',
             ], 500);
         }
     }
@@ -125,7 +124,37 @@ class ParallelController extends Controller
      */
     public function update(Request $request, Parallel $parallel)
     {
-        //
+        try{
+            $validated = $request->validate([
+                'course_id' => ['required', 'integer', 'exists:courses,id'],
+                'parallel' => ['required', 'string', 'max:2'],
+                'limit' => ['required', 'integer', 'min:1', 'max:100'],
+                'turno' => ['required', 'in:Mañana,Tarde,Noche']
+            ]);
+
+            //Validar para cambiar limite
+            $p = Parallel::withCount([
+                'students as students_count' => function ($query) {
+                $query->where('status', true);
+            }])->findOrFail($parallel->id);
+
+            if($p->students_count <= $request->limit){
+                $parallel->course_id = $request->course_id;
+                $parallel->paralelo = $request->parallel;
+                $parallel->limit = $request->limit;
+                $parallel->turno = $request->turno;
+                $parallel->save();
+            }else{
+                return response()->json(['message' => 'No se puede reducir el cupo'],422);
+            }
+            return response()->json(['message' => 'Paralelo actualizado'],200);
+
+        }catch(Exception $e){
+            return response()->json(
+                ['data' => null,
+                'error' => $e],
+            500);
+        }
     }
 
     /**
@@ -134,5 +163,37 @@ class ParallelController extends Controller
     public function destroy(Parallel $parallel)
     {
         //
+    }
+
+    public function toggleStatus(Parallel $parallel)
+    {
+        try {
+            if($parallel->status){
+                //validar que no haya estudiantes
+                $p = Parallel::withCount([
+                    'students as students_count' => function ($query) {
+                    $query->where('status', true);
+                }])->findOrFail($parallel->id);
+
+                if($p->students_count > 0){
+                    return response()->json([
+                        'message' => 'El paralelo no puede modificarse.'
+                    ],422);
+                }
+            }
+
+            $parallel->status = $parallel->status ? 0 : 1;
+            $parallel->save();
+
+            return response()->json([
+                'status' => $parallel->status,
+                'message' => $parallel->status ? 'Paralelo activada correctamente.' : 'Paralelo desactivada correctamente.',
+            ],200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'No se pudo cambiar el estado del paralelo.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
