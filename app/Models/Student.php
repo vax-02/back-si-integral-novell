@@ -25,16 +25,16 @@ class Student extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function degree()
-    {
-        return $this->belongsTo(Degree::class);
-    }
 
     public function pays()
     {
         return $this->hasMany(Pay::class);
     }
 
+    public function parallels()
+    {
+        return $this->hasMany(StudentParallel::class);
+    }
     public function qualifications()
     {
         return $this->hasMany(Qualification::class);

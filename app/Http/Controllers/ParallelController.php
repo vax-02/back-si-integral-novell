@@ -92,13 +92,25 @@ class ParallelController extends Controller
                     'message' => 'No se encontró un curso de nivel 1 para esta carrera.'
                 ], 404);
             }
-            $parallels = Parallel::where('course_id', $course->id)->where('status',1)->get();
+
+            $parallels = Parallel::where('course_id', $course->id)->where('status', 1)
+                ->withCount([
+                    'students as students_count' => function ($query) {
+                        $query->where('status', true);
+                    }
+                ])->get()->map(function ($parallel) {
+                    $parallel->available = $parallel->limit - $parallel->students_count;
+                    return $parallel;
+                })->filter(function ($parallel) {
+                    return $parallel->available > 0;
+                })->values();
+
             return response()->json([
                 'parallels' => $parallels
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Error interno del servidor.',
+                'message' => 'Error interno del servidor.'.$e,
             ], 500);
         }
     }

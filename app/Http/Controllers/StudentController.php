@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Parallel;
+use App\Models\Career;
 use App\Models\Student;
 use App\Models\StudentCareer;
 use App\Models\StudentParallel;
@@ -36,7 +37,7 @@ class StudentController extends Controller
                 'school_diploma',
                 'carnet'
             ])->with([
-                'user:id,name,first_lastname,second_lastname,email,ci,status',
+                'user:id,name,first_lastname,second_lastname,email,cellphone,ci,status',
                 'studentCareers.career:id,name',
             ]);
 
@@ -77,7 +78,7 @@ class StudentController extends Controller
      */
     public function create()
     {
-        
+
     }
 
     public function store(Request $request)
@@ -148,7 +149,7 @@ class StudentController extends Controller
                     StudentSubject::create([
                         'student_id' => $student->id,
                         'subject_id' => $s->id,
-                    ]); 
+                    ]);
                 }
                 StudentSubject::create([
                     'student_id' => $student->id,
@@ -216,7 +217,7 @@ class StudentController extends Controller
             'second_lastname' => ['nullable', 'string', 'max:255'],
             'ci' => ['required', 'string', 'max:12', 'unique:users,ci,' . $student->user_id],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $student->user_id],
-            'cellphone' => ['nullable', 'string', 'max:8'],
+            'cellphone' => ['nullable', 'max:8'],
             'birth_certificate' => ['required', 'boolean'],
             'school_diploma' => ['required', 'boolean'],
             'carnet' => ['required', 'boolean'],
@@ -258,14 +259,31 @@ class StudentController extends Controller
         }
     }
 
-    public function withdraw(Request $request, Student $student, $career)
+    //dar de baja
+    public function withdraw(Request $request, Student $student,Career $career)
     {
         try {
             $studentCareer = StudentCareer::where('student_id', $student->id)
-                ->where('career_id', $career)
+                ->where('career_id', $career->id)
                 ->firstOrFail();
 
             $studentCareer->update(['status' => 'Suspendido']);
+
+            //xxxxxxxxxxxxxxxxxxxxx
+            $parallel = Parallel::with('course.career')->findOrFail($career->id);
+
+            $careerId = $parallel->course->career->id;
+
+            // Desactivar solo el paralelo de esa carrera
+            StudentParallel::where('student_id', $student->id)
+            ->whereHas('parallel.course', function ($query) use ($careerId) {
+                $query->where('career_id', $careerId);
+            })
+            ->where('status', true)
+            ->update([
+                'status' => false
+            ]);
+
 
             return response()->json([
                 'message' => 'Baja procesada correctamente.'
@@ -303,24 +321,46 @@ class StudentController extends Controller
             'parallel_id' => ['required', 'exists:parallels,id'],
         ]);
 
+        DB::beginTransaction();
         try {
-            $parallel = Parallel::findOrFail($validated['parallel_id']);
+            $exists = StudentParallel::where('student_id', $student->id)
+                ->where('parallel_id',$validated['parallel_id'])
+                ->where('status', true)->exists();
 
-            // Actualizar o crear el registro de paralelo del estudiante
-            StudentParallel::updateOrCreate(
-                ['student_id' => $student->id],
-                [
-                    'parallel_id' => $parallel->id,
-                    'turno' => $parallel->turno,
-                ]
-            );
+            if ($exists) {
+                return response()->json([
+                    'message' => 'El estudiante ya se encuentra asignado a este paralelo.'
+                ], 409);
+            }
 
+            $parallel = Parallel::with('course.career')->findOrFail($validated['parallel_id']);
+
+            $careerId = $parallel->course->career->id;
+
+            // Desactivar solo el paralelo de esa carrera
+            StudentParallel::where('student_id', $student->id)
+            ->whereHas('parallel.course', function ($query) use ($careerId) {
+                $query->where('career_id', $careerId);
+            })
+            ->where('status', true)
+            ->update([
+                'status' => false
+            ]);
+
+            // Crear nuevo paralelo activo
+            $studentParallel = StudentParallel::create([
+                'student_id' => $student->id,
+                'parallel_id' => $validated['parallel_id'],
+                'status' => true,
+            ]);
+            DB::commit();
             return response()->json([
                 'message' => 'Paralelo actualizado correctamente.'
             ]);
         } catch (Exception $e) {
+            DB:rollback();
             return response()->json([
-                'error' => 'Error al actualizar paralelo: ' . $e->getMessage()
+                'error' => 'Error al actualizar paralelo: '
             ], 500);
         }
     }
@@ -345,7 +385,7 @@ class StudentController extends Controller
 
             if ($exists) {
                 return response()->json([
-                    'message' => 'El estudiante ya está inscrito en esta carrera.'
+                    'message' => 'El estudiante ya está inscrito en esta carrera.xx'
                 ], 409);
             }
 
@@ -360,9 +400,8 @@ class StudentController extends Controller
             StudentParallel::create([
                 'student_id' => $request->student_id,
                 'parallel_id' => $request->parallel_id,
-                'turno'=> $parallel->turno
             ]);
-            
+
             DB::commit();
 
             return response()->json([
