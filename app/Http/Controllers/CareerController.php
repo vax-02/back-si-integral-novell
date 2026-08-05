@@ -37,7 +37,7 @@ class CareerController extends Controller
 
     public function simple(){
         try {
-            $careers = Career::select('id', 'name')->get();
+            $careers = Career::select('id', 'name')->where('status',1)->get();
 
             return response()->json([
                 'careers' => $careers,
