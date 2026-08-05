@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\NumberToString;
+use Illuminate\Support\Facades\DB;
 use App\Models\Institution;
 use App\Models\Pay;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -44,7 +45,7 @@ class PayController extends Controller
                 ->values();
             return response()->json([
                 'pays' => $groupedPays,
-                
+
             ]);
         }catch(Exception $e){
 
@@ -56,11 +57,11 @@ class PayController extends Controller
             return response()->json([
                 'pays_for_month' => Pay::where('status',1)->whereYear('created_at', $now->year)
                     ->whereMonth('created_at', $now->month)
-                    ->sum('amount'),
+                    ->sum(DB::raw('amount - discount')),
                 'total_pays' => Pay::where('status',1)->count()
             ]);
         }catch(Exception $e){
-    
+
         }
     }
 

@@ -90,7 +90,7 @@ class StudentController extends Controller
             'second_lastname' => ['nullable', 'string', 'max:255'],
             'ci' => ['required', 'string', 'max:12', 'unique:users,ci'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'cellphone' => ['nullable', 'string', 'max:8'],
+            'cellphone' => ['nullable', 'max:8'],
 
             // Student
             'career_id' => ['required', 'exists:careers,id'],
@@ -110,7 +110,7 @@ class StudentController extends Controller
                 'second_lastname' => $validated['second_lastname'] ?? null,
                 'ci' => $validated['ci'],
                 'email' => $validated['email'],
-                'cellphone' => $validated['cellphone'] ?? null,
+                'cellphone' => $validated['cellphone'] == 0 ? null : $validated['cellphone'],
                 'password' => Hash::make($validated['ci'])
             ]);
 
