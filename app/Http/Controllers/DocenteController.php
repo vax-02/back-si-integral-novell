@@ -14,9 +14,6 @@ use Illuminate\Support\Facades\Hash;
 
 class DocenteController extends Controller
 {
-    // ─────────────────────────────────────────────────────────────
-    //  INDEX  GET /api/docentes
-    // ─────────────────────────────────────────────────────────────
     public function index(Request $request)
     {
         try {
@@ -24,16 +21,30 @@ class DocenteController extends Controller
             $search  = $request->input('search');
 
             $query = Docente::with(['user', 'degree', 'subjects.career']);
+     /*       $query = Docente::with([
+                'user',
+                'degree',
+                'subjects' => function ($q) {
+                    $q->where('subjects.status', 1)
+                    ->with([
+                        'career' => function ($q) {
+                            $q->where('careers.status', 1);
+                        }
+                    ]);
+                }
+            ]);
 
+*/
             if ($search) {
                 $query->whereHas('user', function ($q) use ($search) {
-                    $q->where('name',           'like', "%$search%")
+                    $q->where('users.name',           'like', "%$search%")
                       ->orWhere('first_lastname','like', "%$search%")
                       ->orWhere('second_lastname','like', "%$search%")
                       ->orWhere('ci',            'like', "%$search%")
                       ->orWhere('email',         'like', "%$search%");
                 });
             }
+            //return response()->json(['error' => $query->paginate($perPage)],500);
 
             $total    = Docente::count();
             $activos = Docente::whereHas('user', function ($query) {
@@ -50,7 +61,7 @@ class DocenteController extends Controller
                 'inactivos' => $inactivos,
             ]);
         } catch (Exception $e) {
-            return response()->json([],500);
+            return response()->json(['error'=>$e],500);
         }
     }
 

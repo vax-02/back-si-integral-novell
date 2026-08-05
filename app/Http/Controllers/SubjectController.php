@@ -172,7 +172,7 @@ class SubjectController extends Controller
     //  ASSIGN DOCENTE  POST /api/subjects/{subject}/assign-docente
     //  Asigna un docente a una materia y paralelo específico
     // ─────────────────────────────────────────────────────────────
-    public function assignDocente(Request $request, Subject $subject)
+   /* public function assignDocente(Request $request, Subject $subject)
     {
         $request->validate([
             'docente_id'  => 'required|integer|exists:docentes,id',
@@ -210,7 +210,44 @@ class SubjectController extends Controller
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }*/
+    public function assignDocente(Request $request, Subject $subject)
+{
+    $request->validate([
+        'docente_id'  => 'required|integer|exists:docentes,id',
+        'parallel_id' => 'required|integer|exists:parallels,id',
+    ]);
+
+    try {
+        $docenteId  = $request->docente_id;
+        $parallelId = $request->parallel_id;
+
+        // Desactivar el docente actualmente asignado a esta materia y paralelo
+        $subject->docentes()
+            ->wherePivot('parallel_id', $parallelId)
+            ->wherePivot('status', 1)
+            ->update([
+                'docente_subject.status' => 0,
+                'docente_subject.updated_at' => now(),
+            ]);
+
+        // Crear SIEMPRE un nuevo registro
+        $subject->docentes()->attach($docenteId, [
+            'parallel_id' => $parallelId,
+            'status'      => 1,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Docente asignado correctamente.',
+        ]);
+    } catch (Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     // ─────────────────────────────────────────────────────────────
     //  REMOVE DOCENTE  POST /api/subjects/{subject}/remove-docente

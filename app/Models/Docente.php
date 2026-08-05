@@ -28,8 +28,8 @@ class Docente extends Model
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'docente_subject')
-                    ->withPivot(['parallel_id', 'subject_id','status'])
-                    ->where('status',1)
+                    ->withPivot(['parallel_id', 'subject_id'])
+                    ->where('subjects.status',1)
                     ->withTimestamps();
     }
 
