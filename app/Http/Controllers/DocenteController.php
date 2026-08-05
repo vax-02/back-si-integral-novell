@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Docente;
+use App\Models\DocenteSubject;
 use App\Models\Parallel;
 use App\Models\User;
 use App\Models\UserRoles;
@@ -182,25 +183,25 @@ class DocenteController extends Controller
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  TOGGLE STATUS  PUT /api/docentes/{docente}/toggle-status
-    // ─────────────────────────────────────────────────────────────
     public function toggleStatus(Docente $docente)
     {
         try {
-            $newStatus = $docente->status ? 0 : 1;
-
             DB::beginTransaction();
-            $docente->user->update(['status' => $newStatus]);
+                $user = $docente->user;
+                $user->status = $user->status ? 0 : 1;
+                if(!$user->status){
+                    DocenteSubject::where('docente_id',$docente->id)->update(['status' => false]);
+                }
+                $user->save();
             DB::commit();
 
             return response()->json([
-                'message' => $newStatus ? 'Docente activado.' : 'Docente bloqueado.',
-                'status'  => $newStatus,
+                'message' =>  $user->status ? 'Docente activado.' : 'Docente bloqueado.',
+                'status'  => $user->status,
             ]);
         } catch (Exception $e) {
             DB::rollBack();
-            return response()->json([],500);
+            return response()->json(['error' => $e],500);
         }
     }
 
@@ -225,7 +226,7 @@ class DocenteController extends Controller
                 ->map(function ($subject) use ($docente) {
                     $parallel = Parallel::with('course.career')
                         ->find($subject->pivot->parallel_id);
-                    
+
                     return [
                         'id'            => $subject->id,
                         'name'          => $subject->name,
