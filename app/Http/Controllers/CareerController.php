@@ -38,7 +38,7 @@ class CareerController extends Controller
     public function simple(){
         try {
             $careers = Career::select('id', 'name')->get();
-        
+
             return response()->json([
                 'careers' => $careers,
             ]);
@@ -55,7 +55,7 @@ class CareerController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'duration' => 'required|in:1 año,2 años,3 años',
+            'duration' => 'required|in:1,2,3',
         ]);
 
         try {
@@ -204,7 +204,7 @@ class CareerController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'duration' => 'required|in:1 año,2 años,3 años',
+            'duration' => 'required|in:1,2,3',
         ]);
 
         try {
@@ -218,14 +218,17 @@ class CareerController extends Controller
     public function toggleStatus(Career $career)
     {
         try {
+            DB::beginTransaction();
             $career->status = !$career->status;
             $career->save();
-
+            Subject::where('career_id',$career->id)->update(['status' => $career->status]);
+            DB::commit();
             return response()->json([
                 'status' => $career->status,
                 'message' => $career->status ? 'Carrera activada correctamente.' : 'Carrera desactivada correctamente.',
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'message' => 'No se pudo cambiar el estado de la carrera.',
                 'error' => $e->getMessage(),
@@ -325,7 +328,7 @@ class CareerController extends Controller
         ];
     }
 
-   
+
     private function loadImportRows($file): array
 {
     $spreadsheet = IOFactory::load($file->getRealPath());

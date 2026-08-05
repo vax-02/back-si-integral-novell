@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('careers', function (Blueprint $table) {
             $table->id();
             $table->string("name");
-            $table->enum("duration", ["1 año", "2 años", "3 años"]);
-            $table->enum("type", ["Semestral", "Anual"])->default("Semestral");
-            $table->tinyInteger("status")->default(1); 
+            $table->enum("duration", [1,2,3]);
+            $table->enum("type", [1, 2]); //Anual / Semestral
+            $table->tinyInteger("status")->default(1);
             $table->timestamps();
         });
     }
