@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Parallel;
 use App\Models\Career;
+use App\Models\Course;
 use App\Models\Student;
 use App\Models\StudentCareer;
 use App\Models\StudentParallel;
@@ -98,6 +99,9 @@ class StudentController extends Controller
             'school_diploma' => ['required'],
             'carnet' => ['required'],
             'parallel_id' => ['required', 'exists:parallels,id'],
+        ], [
+            'ci.unique' => 'El C.I. ya está registrado',
+            'email.unique' => 'El correo electrónico ya está registrado',
         ]);
 
         DB::beginTransaction();
@@ -185,10 +189,90 @@ class StudentController extends Controller
             $student->load([
                 'user:id,name,first_lastname,second_lastname,email,ci,cellphone',
                 'studentCareers.career:id,name',
+                'parallels' => function ($query) {
+                    $query->where('status', true)
+                        ->with('parallel.course:id,name,level,career_id');
+                },
             ]);
 
+            $student->studentCareers->each(function ($sc) use ($student) {
+                $current = $student->parallels->firstWhere('parallel.course.career_id', $sc->career_id);
+                $sc->current_parallel = $current && $current->parallel ? [
+                    'id'          => $current->parallel->id,
+                    'paralelo'    => $current->parallel->paralelo,
+                    'turno'       => $current->parallel->turno,
+                    'level'       => $current->parallel->course ? $current->parallel->course->level : null,
+                    'course_name' => $current->parallel->course ? $current->parallel->course->name : null,
+                ] : null;
+            });
+
+            $allChanges = StudentParallel::where('student_id', $student->id)
+                ->with('parallel.course:id,name,level,career_id')
+                ->orderBy('created_at')
+                ->get();
+
+            $allCourses = Course::whereIn('career_id', $student->studentCareers->pluck('career_id'))
+                ->orderBy('level')
+                ->get(['id', 'career_id', 'name', 'level']);
+
+            $parallelHistory = [];
+
+            foreach ($student->studentCareers as $sc) {
+                $career = $sc->career;
+                if (!$career) continue;
+
+                $courses = $allCourses->where('career_id', $career->id)->values();
+
+                $changes = $allChanges->filter(function ($sp) use ($career) {
+                    return $sp->parallel?->course?->career_id == $career->id;
+                })
+                ->values()
+                ->map(function ($sp, $index) {
+                    return [
+                        'ordinal'     => $index + 1,
+                        'active'      => (bool) $sp->status,
+                        'paralelo'    => $sp->parallel?->paralelo,
+                        'turno'       => $sp->parallel?->turno,
+                        'level'       => $sp->parallel?->course?->level,
+                        'course_name' => $sp->parallel?->course?->name,
+                        'changed_at'  => $sp->created_at?->toDateTimeString(),
+                    ];
+                });
+
+                $parallelHistory[] = [
+                    'career_id'   => $career->id,
+                    'career_name' => $career->name,
+                    'courses'     => $courses,
+                    'changes'     => $changes,
+                ];
+            }
+
+            $subjectHistory = StudentSubject::where('student_id', $student->id)
+                ->with('subject.career:id,name')
+                ->get()
+                ->sortBy(function ($ss) {
+                    return sprintf(
+                        '%04d-%s',
+                        (int) ($ss->subject?->level ?? 0),
+                        strtolower((string) $ss->subject?->name)
+                    );
+                })
+                ->values()
+                ->map(function ($ss) {
+                    return [
+                        'name'        => $ss->subject?->name,
+                        'sigla'       => $ss->subject?->sigla,
+                        'level'       => $ss->subject?->level,
+                        'status'      => $ss->status,
+                        'career_id'   => $ss->subject?->career_id,
+                        'career_name' => $ss->subject?->career?->name,
+                    ];
+                });
+
             return response()->json([
-                'student' => $student
+                'student'          => $student,
+                'parallel_history' => $parallelHistory,
+                'subject_history'  => $subjectHistory,
             ]);
 
         }catch(\Exception $e){
@@ -221,6 +305,9 @@ class StudentController extends Controller
             'birth_certificate' => ['required', 'boolean'],
             'school_diploma' => ['required', 'boolean'],
             'carnet' => ['required', 'boolean'],
+        ], [
+            'ci.unique' => 'El C.I. ya está registrado',
+            'email.unique' => 'El correo electrónico ya está registrado',
         ]);
 
         DB::beginTransaction();
@@ -260,7 +347,7 @@ class StudentController extends Controller
     }
 
     //dar de baja
-    public function withdraw(Request $request, Student $student,Career $career)
+    public function withdraw(Request $request, Student $student, Career $career)
     {
         try {
             $studentCareer = StudentCareer::where('student_id', $student->id)
@@ -269,21 +356,15 @@ class StudentController extends Controller
 
             $studentCareer->update(['status' => 'Suspendido']);
 
-            //xxxxxxxxxxxxxxxxxxxxx
-            $parallel = Parallel::with('course.career')->findOrFail($career->id);
-
-            $careerId = $parallel->course->career->id;
-
-            // Desactivar solo el paralelo de esa carrera
+            // Desactivar los paralelos activos del estudiante en esa carrera para liberar cupo
             StudentParallel::where('student_id', $student->id)
-            ->whereHas('parallel.course', function ($query) use ($careerId) {
-                $query->where('career_id', $careerId);
-            })
-            ->where('status', true)
-            ->update([
-                'status' => false
-            ]);
-
+                ->whereHas('parallel.course', function ($query) use ($career) {
+                    $query->where('career_id', $career->id);
+                })
+                ->where('status', true)
+                ->update([
+                    'status' => false
+                ]);
 
             return response()->json([
                 'message' => 'Baja procesada correctamente.'

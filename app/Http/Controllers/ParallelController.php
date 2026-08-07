@@ -80,16 +80,18 @@ class ParallelController extends Controller
         }
     }
 
-    public function getFirstCourse($id)
+    public function getFirstCourse(Request $request, $id)
     {
         try {
+            $level = (int) $request->query('level', 1);
+
             $course = Course::where('career_id', $id)
-                ->where('level', 1)
+                ->where('level', $level)
                 ->first();
 
             if (!$course) {
                 return response()->json([
-                    'message' => 'No se encontró un curso de nivel 1 para esta carrera.'
+                    'message' => 'No se encontró un curso para esta carrera.'
                 ], 404);
             }
 
