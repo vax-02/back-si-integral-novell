@@ -54,8 +54,14 @@ class DocenteController extends Controller
             $inactivos = Docente::whereHas('user', function ($query) {
                 $query->where('status', 0);
             })->count();
+
+            $paginator = $query->paginate($perPage);
+            $paginator->getCollection()->transform(function ($docente) {
+                return $this->attachSubjectDetails($docente);
+            });
+
             return response()->json([
-                'docentes'  => $query->paginate($perPage),
+                'docentes'  => $paginator,
                 'total'     => $total,
                 'activos'   => $activos,
                 'inactivos' => $inactivos,
@@ -127,10 +133,36 @@ class DocenteController extends Controller
     public function show(Docente $docente)
     {
         try {
-            return response()->json($docente->load(['user', 'degree', 'subjects.career']));
+            return response()->json($this->attachSubjectDetails(
+                $docente->load(['user', 'degree', 'subjects.career'])
+            ));
         } catch (Exception $e) {
             return response()->json([],500);
         }
+    }
+
+    /**
+     * Adjunta a cada materia asignada el paralelo con su curso y carrera,
+     * para mostrar materia, carrera, curso, paralelo y turno.
+     */
+    private function attachSubjectDetails(Docente $docente)
+    {
+        $docente->subjects->each(function ($subject) {
+            $parallel = Parallel::with('course.career')->find($subject->pivot->parallel_id);
+
+            $subject->setAttribute('parallel', $parallel ? [
+                'id'            => $parallel->id,
+                'paralelo'      => $parallel->paralelo,
+                'turno'         => $parallel->turno,
+                'course_id'     => $parallel->course?->id,
+                'course_name'   => $parallel->course?->name,
+                'course_level'  => $parallel->course?->level,
+                'career_id'     => $parallel->course?->career?->id,
+                'career_name'   => $parallel->course?->career?->name,
+            ] : null);
+        });
+
+        return $docente;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -274,9 +306,17 @@ class DocenteController extends Controller
             // syncWithoutDetaching evita duplicar, solo añade si no existe
             $docente->subjects()->syncWithoutDetaching([$request->subject_id]);
 
+            // Asegura que la asignación quede activa (status true)
+            DB::table('docente_subject')
+                ->where('docente_id', $docente->id)
+                ->where('subject_id', $request->subject_id)
+                ->update(['status' => true]);
+
             return response()->json([
                 'message'  => 'Materia asignada exitosamente.',
-                'subjects' => $docente->subjects()->with('career')->get(),
+                'subjects' => $this->attachSubjectDetails(
+                    $docente->load(['subjects.career'])
+                )->subjects,
             ]);
         } catch (Exception $e) {
             return response()->json([],500);
@@ -293,7 +333,9 @@ class DocenteController extends Controller
 
             return response()->json([
                 'message'  => 'Materia removida exitosamente.',
-                'subjects' => $docente->subjects()->with('career')->get(),
+                'subjects' => $this->attachSubjectDetails(
+                    $docente->load(['subjects.career'])
+                )->subjects,
             ]);
         } catch (Exception $e) {
             return response()->json([],500);
