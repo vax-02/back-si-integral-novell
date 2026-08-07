@@ -43,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pays/cards', [PayController::class,'dataCards']);
     Route::get('parallels/{id}/first-course', [ParallelController::class,'getFirstCourse']);
     Route::put('parallels/{parallel}/toggle-status', [ParallelController::class,'toggleStatus']);
+    Route::get('parallels/{parallel}/materials', [MaterialController::class, 'materialsByParallel']);
 
 
     Route::apiResource('parallels', ParallelController::class);
@@ -84,8 +85,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
     Route::get('materials', [MaterialController::class, 'index']);
     Route::post('materials', [MaterialController::class, 'store']);
+    Route::put('materials/{id}', [MaterialController::class, 'update']);
     Route::get('materials/{material}/download', [MaterialController::class, 'download']);
     Route::delete('materials/{id}', [MaterialController::class, 'destroy']);
+    Route::get('student/materials', [MaterialController::class, 'studentMaterials']);
 
     Route::get('grades/students/{parallel}', [GradeController::class, 'getStudents']);
     Route::post('grades/save', [GradeController::class, 'saveGrade']);
