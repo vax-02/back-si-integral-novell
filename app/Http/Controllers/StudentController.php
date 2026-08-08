@@ -252,13 +252,21 @@ class StudentController extends Controller
                         strtolower((string) $ss->subject?->name)
                     );
                 })
-                ->values()
-                ->map(function ($ss) {
+                ->values();
+
+            $finalGrades = Qualification::where('student_id', $student->id)
+                ->where('published', true)
+                ->whereNotNull('final_grade')
+                ->pluck('final_grade', 'subject_id');
+
+            $subjectHistory = $subjectHistory
+                ->map(function ($ss) use ($finalGrades) {
                     return [
                         'name'        => $ss->subject?->name,
                         'sigla'       => $ss->subject?->sigla,
                         'level'       => $ss->subject?->level,
                         'status'      => $ss->status,
+                        'final_grade' => $finalGrades->get($ss->subject_id),
                         'career_id'   => $ss->subject?->career_id,
                         'career_name' => $ss->subject?->career?->name,
                     ];
