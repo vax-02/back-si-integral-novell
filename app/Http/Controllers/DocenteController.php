@@ -20,7 +20,7 @@ class DocenteController extends Controller
             $perPage = $request->input('per_page', 10);
             $search  = $request->input('search');
 
-            $query = Docente::with(['user', 'degree', 'subjects.career']);
+            $query = Docente::with(['user', 'degree', 'subjects.career', 'schedules']);
      /*       $query = Docente::with([
                 'user',
                 'degree',
@@ -208,6 +208,8 @@ class DocenteController extends Controller
                 'professional_title'=> $request->has('professional_title') ? $request->boolean('professional_title') : null,
                 'carnet'            => $request->has('carnet')             ? $request->boolean('carnet')             : null,
                 'certificate'       => $request->has('certificate')        ? $request->boolean('certificate')        : null,
+                'biometric_pin'     => $request->has('biometric_pin')      ? $request->biometric_pin                  : null,
+                'tolerance_minutes' => $request->has('tolerance_minutes')  ? $request->tolerance_minutes              : null,
             ], fn($v) => !is_null($v));
 
             if (!empty($docenteFields)) {

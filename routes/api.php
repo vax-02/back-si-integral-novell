@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CareerController;
 use App\Http\Controllers\ConceptController;
@@ -66,6 +67,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
     Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
     Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
+
+    // Asistencia / biometría
+    Route::put('docentes/{docente}/biometric-pin', [AttendanceController::class, 'setBiometricPin']);
+    Route::put('docentes/{docente}/tolerance',     [AttendanceController::class, 'setTolerance']);
+    Route::get('docentes/{docente}/schedules',     [AttendanceController::class, 'getSchedules']);
+    Route::post('docentes/{docente}/schedules',    [AttendanceController::class, 'storeSchedule']);
+    Route::delete('docente-schedules/{schedule}',  [AttendanceController::class, 'destroySchedule']);
+    Route::post('attendance/import',               [AttendanceController::class, 'importAttendance']);
+    Route::get('attendance/validate',              [AttendanceController::class, 'validateAttendance']);
     Route::get('subjects', [SubjectController::class, 'index']);
     Route::get('subjects/{subject}/detail', [SubjectController::class, 'detail']);
     Route::get('subjects/{subject}/history', [SubjectController::class, 'history']);

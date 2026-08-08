@@ -13,6 +13,8 @@ class Docente extends Model
         'professional_title',
         'carnet',
         'certificate',
+        'biometric_pin',
+        'tolerance_minutes',
     ];
 
     public function user()
@@ -23,6 +25,16 @@ class Docente extends Model
     public function degree()
     {
         return $this->belongsTo(Degree::class);
+    }
+
+    public function schedules()
+    {
+        return $this->hasMany(DocenteSchedule::class);
+    }
+
+    public function attendanceRecords()
+    {
+        return $this->hasMany(AttendanceRecord::class);
     }
 
     public function subjects()
