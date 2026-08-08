@@ -16,6 +16,18 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         try {
+            // Endpoint de selección: devuelve los cursos de una carrera como array plano
+            if ($request->has('career_id')) {
+                $courses = Course::where('career_id', $request->career_id)
+                    ->withCount('parallels')
+                    ->orderBy('level')
+                    ->get();
+
+                return response()->json([
+                    'courses' => $courses,
+                ]);
+            }
+
             $perPage = $request->input('per_page', 10);
             $search  = $request->input('search');
 

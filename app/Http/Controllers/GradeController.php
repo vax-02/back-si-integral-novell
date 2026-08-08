@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\EvaluationColumn;
 use App\Models\Qualification;
 use App\Models\QualificationDetail;
 use App\Models\Student;
 use App\Models\Parallel;
 use App\Models\StudentParallel;
+use App\Models\Subject;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -283,6 +285,93 @@ class GradeController extends Controller
             return response()->json([
                 'message' => 'Columna actualizada.',
                 'column' => $column,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Listado general de calificaciones de un paralelo: matriz estudiantes x materias
+     */
+    public function generalByParallel(int $parallelId)
+    {
+        try {
+            $parallel = Parallel::with('course.career')->findOrFail($parallelId);
+            $course = $parallel->course;
+
+            // Materias del curso (misma carrera y nivel del curso)
+            $subjects = Subject::where('career_id', $course->career_id)
+                ->where('level', $course->level)
+                ->orderBy('name')
+                ->get(['id', 'name', 'sigla']);
+
+            // Estudiantes activos del paralelo
+            $studentIds = StudentParallel::where('parallel_id', $parallelId)
+                ->where('status', true)
+                ->pluck('student_id');
+
+            $students = Student::whereIn('id', $studentIds)
+                ->with('user')
+                ->get();
+
+            // Notas finales (una por estudiante + materia + curso + paralelo)
+            $qualifications = Qualification::where('course_id', $course->id)
+                ->where('parallel_id', $parallelId)
+                ->whereIn('subject_id', $subjects->pluck('id'))
+                ->get()
+                ->keyBy(fn ($q) => $q->student_id . '_' . $q->subject_id);
+
+            $rows = $students->map(function ($student) use ($subjects, $qualifications) {
+                $grades = [];
+                $sum = 0;
+                $count = 0;
+
+                foreach ($subjects as $subject) {
+                    $final = $qualifications->get($student->id . '_' . $subject->id)?->final_grade;
+                    $grades[$subject->id] = $final !== null ? round($final, 2) : null;
+                    if ($final !== null) {
+                        $sum += $final;
+                        $count++;
+                    }
+                }
+
+                return [
+                    'id' => $student->id,
+                    'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                    'ci' => $student->user->ci ?? '—',
+                    'grades' => $grades,
+                    'average' => $count > 0 ? round($sum / $count, 2) : null,
+                ];
+            });
+
+            $appliedGrades = collect($rows->pluck('grades')->toArray());
+            $allGrades = [];
+            foreach ($appliedGrades as $studentGrades) {
+                foreach ($studentGrades as $grade) {
+                    if ($grade !== null) {
+                        $allGrades[] = $grade;
+                    }
+                }
+            }
+
+            $approved = collect($allGrades)->filter(fn ($g) => $g >= 51)->count();
+            $failed = collect($allGrades)->filter(fn ($g) => $g < 51)->count();
+
+            return response()->json([
+                'parallel' => $parallel,
+                'course' => $course->only(['id', 'name', 'level']),
+                'career' => $course->career ? $course->career->only(['id', 'name', 'type']) : null,
+                'subjects' => $subjects,
+                'students' => $rows,
+                'summary' => [
+                    'promedio_general' => count($allGrades) > 0 ? round(array_sum($allGrades) / count($allGrades), 2) : null,
+                    'aprobados' => $approved,
+                    'reprobados' => $failed,
+                    'total_notas' => count($allGrades),
+                    'total_estudiantes' => $rows->count(),
+                    'total_materias' => $subjects->count(),
+                ],
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
