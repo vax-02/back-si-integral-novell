@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);
     Route::post('students/{student}/reinstate/{career}', [StudentController::class, 'reinstate']);
     Route::put('students/{student}/parallel', [StudentController::class, 'updateParallel']);
+    Route::post('students/{student}/advance-level', [StudentController::class, 'advanceLevel']);
     Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
     Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
     Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);

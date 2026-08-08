@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Parallel;
 use App\Models\Career;
 use App\Models\Course;
+use App\Models\Qualification;
 use App\Models\Student;
 use App\Models\StudentCareer;
 use App\Models\StudentParallel;
@@ -149,16 +150,10 @@ class StudentController extends Controller
             //Asignarle materias
             $subjets = Subject::where('career_id',$validated['career_id'])->orderBy('level')->get();
             foreach($subjets as $s){
-                if($s->level == 1){
-                    StudentSubject::create([
-                        'student_id' => $student->id,
-                        'subject_id' => $s->id,
-                    ]);
-                }
                 StudentSubject::create([
                     'student_id' => $student->id,
                     'subject_id' => $s->id,
-                    'status' => 'Falta'
+                    'status' => $s->level == 1 ? 'Registrado' : 'Falta'
                 ]);
             }
 
@@ -442,6 +437,213 @@ class StudentController extends Controller
             DB::rollBack();
             return response()->json([
                 'error' => 'Error al actualizar paralelo: '
+            ], 500);
+        }
+    }
+
+    /**
+     * Avanzar de nivel: evalúa materias del nivel actual, asigna las del siguiente
+     * según pre-requisitos y mueve al estudiante al nuevo paralelo.
+     */
+    public function advanceLevel(Request $request, Student $student)
+    {
+        if (!auth()->user()->roles->contains('id', 1)) {
+            return response()->json([
+                'message' => 'Solo el administrador puede realizar esta acción.'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'career_id' => ['required', 'exists:careers,id'],
+            'parallel_id' => ['required', 'exists:parallels,id'],
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $career = Career::findOrFail($validated['career_id']);
+
+            // Paralelo activo actual → nivel actual
+            $currentStudentParallel = StudentParallel::where('student_id', $student->id)
+                ->where('status', true)
+                ->whereHas('parallel.course', function ($query) use ($validated) {
+                    $query->where('career_id', $validated['career_id']);
+                })
+                ->with('parallel.course')
+                ->first();
+
+            if (!$currentStudentParallel) {
+                return response()->json([
+                    'message' => 'El estudiante no tiene un paralelo activo en esta carrera.'
+                ], 422);
+            }
+
+            $currentLevel = (int) $currentStudentParallel->parallel->course->level;
+            $newLevel = $currentLevel + 1;
+
+            // Validar que el paralelo destino pertenezca al curso del siguiente nivel
+            $newParallel = Parallel::with('course')
+                ->findOrFail($validated['parallel_id']);
+
+            if ($newParallel->course->career_id != $validated['career_id']) {
+                return response()->json([
+                    'message' => 'El paralelo seleccionado no pertenece a la carrera indicada.'
+                ], 422);
+            }
+
+            if ((int) $newParallel->course->level !== $newLevel) {
+                return response()->json([
+                    'message' => 'El paralelo seleccionado no corresponde al siguiente nivel (nivel ' . $newLevel . ').'
+                ], 422);
+            }
+
+            // Validar total de niveles según tipo (1=Anual, 2=Semestral) × duración
+            $totalLevels = (int) $career->type * (int) $career->duration;
+            if ($newLevel > $totalLevels) {
+                return response()->json([
+                    'message' => 'El estudiante ya cursa el último nivel de la carrera.'
+                ], 422);
+            }
+
+            // Evitar duplicar el paralelo activo destino
+            $existsActive = StudentParallel::where('student_id', $student->id)
+                ->where('parallel_id', $validated['parallel_id'])
+                ->where('status', true)
+                ->exists();
+
+            if ($existsActive) {
+                return response()->json([
+                    'message' => 'El estudiante ya se encuentra asignado a este paralelo.'
+                ], 409);
+            }
+
+            $careerSubjects = Subject::where('career_id', $validated['career_id'])->get();
+            $careerSubjectIds = $careerSubjects->pluck('id');
+
+            // Materias actuales del estudiante en esta carrera
+            $studentSubjects = StudentSubject::where('student_id', $student->id)
+                ->whereIn('subject_id', $careerSubjectIds)
+                ->get()
+                ->keyBy('subject_id');
+
+            // 1) Evaluar aprobación de materias en estado 'Registrado'
+            $publishedGrades = Qualification::where('student_id', $student->id)
+                ->where('published', true)
+                ->whereIn('subject_id', $careerSubjectIds)
+                ->get()
+                ->keyBy('subject_id');
+
+            $approved = [];
+            $repeated = [];
+
+            foreach ($studentSubjects as $ss) {
+                if ($ss->status !== 'Registrado') {
+                    continue;
+                }
+
+                $subject = $careerSubjects->firstWhere('id', $ss->subject_id);
+                $qual = $publishedGrades->get($ss->subject_id);
+
+                $passed = $qual && $qual->final_grade !== null && $qual->final_grade >= 51;
+
+                if ($passed) {
+                    $ss->update(['status' => 'Aprobado']);
+                    $approved[] = [
+                        'id' => $subject->id,
+                        'sigla' => $subject->sigla,
+                        'name' => $subject->name,
+                        'level' => $subject->level,
+                    ];
+                } else {
+                    $repeated[] = [
+                        'id' => $subject->id,
+                        'sigla' => $subject->sigla,
+                        'name' => $subject->name,
+                        'level' => $subject->level,
+                    ];
+                }
+            }
+
+            // 2) Asignar materias del siguiente nivel según pre-requisitos
+            $nextLevelSubjects = $careerSubjects
+                ->where('level', $newLevel)
+                ->sortBy('name');
+
+            $assigned = [];
+            $missingByPrerequisite = [];
+
+            foreach ($nextLevelSubjects as $subject) {
+                $prerequisiteMet = true;
+
+                if ($subject->subject_id) {
+                    $prereq = $studentSubjects->get($subject->subject_id);
+                    $prerequisiteMet = $prereq && $prereq->status === 'Aprobado';
+                }
+
+                if ($prerequisiteMet) {
+                    StudentSubject::updateOrCreate(
+                        ['student_id' => $student->id, 'subject_id' => $subject->id],
+                        ['status' => 'Registrado']
+                    );
+                    $studentSubjects[$subject->id] = StudentSubject::where('student_id', $student->id)
+                        ->where('subject_id', $subject->id)
+                        ->first();
+                    $assigned[] = [
+                        'id' => $subject->id,
+                        'sigla' => $subject->sigla,
+                        'name' => $subject->name,
+                        'level' => $subject->level,
+                    ];
+                } else {
+                    StudentSubject::updateOrCreate(
+                        ['student_id' => $student->id, 'subject_id' => $subject->id],
+                        ['status' => 'Falta']
+                    );
+                    $missingByPrerequisite[] = [
+                        'id' => $subject->id,
+                        'sigla' => $subject->sigla,
+                        'name' => $subject->name,
+                        'level' => $subject->level,
+                    ];
+                }
+            }
+
+            // 3) Mover al estudiante al paralelo del siguiente nivel
+            StudentParallel::where('student_id', $student->id)
+                ->whereHas('parallel.course', function ($query) use ($validated) {
+                    $query->where('career_id', $validated['career_id']);
+                })
+                ->where('status', true)
+                ->update(['status' => false]);
+
+            $studentParallel = StudentParallel::create([
+                'student_id' => $student->id,
+                'parallel_id' => $validated['parallel_id'],
+                'status' => true,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Nivel avanzado correctamente.',
+                'current_level' => $currentLevel,
+                'new_level' => $newLevel,
+                'approved' => $approved,
+                'repeated' => $repeated,
+                'assigned' => $assigned,
+                'missing_by_prerequisite' => $missingByPrerequisite,
+                'parallel' => [
+                    'id' => $studentParallel->parallel_id,
+                    'paralelo' => $newParallel->paralelo,
+                    'turno' => $newParallel->turno,
+                    'course' => $newParallel->course->name,
+                    'level' => $newParallel->course->level,
+                ],
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error al avanzar de nivel.',
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
