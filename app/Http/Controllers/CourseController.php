@@ -67,10 +67,8 @@ class CourseController extends Controller
     {
         $validated = $request->validate([
             'career_id' => ['required', 'integer', 'exists:careers,id'],
-            'gestion'   => ['required', 'string', 'max:25'],
-            'paralelo'  => ['required', 'string', 'max:2', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/u'],
-            'limit'     => ['required', 'integer', 'min:1'],
-            'turno'     => ['required', 'in:Mañana,Tarde,Noche'],
+            'name'      => ['required', 'string', 'max:255'],
+            'level'     => ['required', 'integer', 'min:1'],
         ]);
 
         try {
@@ -104,10 +102,8 @@ class CourseController extends Controller
     {
         $validated = $request->validate([
             'career_id' => ['sometimes', 'integer', 'exists:careers,id'],
-            'gestion'   => ['sometimes', 'string', 'max:25'],
-            'paralelo'  => ['sometimes', 'string', 'max:2', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/u'],
-            'limit'     => ['sometimes', 'integer', 'min:1'],
-            'turno'     => ['sometimes', 'in:Mañana,Tarde,Noche'],
+            'name'      => ['sometimes', 'string', 'max:255'],
+            'level'     => ['sometimes', 'integer', 'min:1'],
         ]);
 
         try {

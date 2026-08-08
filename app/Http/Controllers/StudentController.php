@@ -439,7 +439,7 @@ class StudentController extends Controller
                 'message' => 'Paralelo actualizado correctamente.'
             ]);
         } catch (Exception $e) {
-            DB:rollback();
+            DB::rollBack();
             return response()->json([
                 'error' => 'Error al actualizar paralelo: '
             ], 500);

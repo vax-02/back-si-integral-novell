@@ -171,12 +171,20 @@ class UserController extends Controller
         
 
         try {
-            $validated['password'] = Hash::make($validated['ci']); 
+            $validated['password'] = Hash::make($validated['ci']);
+
+            $roleId = $validated['role_id'];
+            unset($validated['role_id']);
+
             $user = User::create($validated);
+            UserRoles::create([
+                'user_id' => $user->id,
+                'role_id' => $roleId,
+            ]);
 
             return response()->json([
                 'message' => 'User created successfully.',
-                'data' => $user->load('role'),
+                'data' => $user->load('roles'),
             ], 201);
         } catch (Exception $exception) {
             return $this->errorResponse($exception);
@@ -235,11 +243,26 @@ class UserController extends Controller
         ]);
 
         try {
+            if (isset($validated['role_id'])) {
+                $roleId = $validated['role_id'];
+                unset($validated['role_id']);
+
+                UserRoles::where('user_id', $user->id)->delete();
+                UserRoles::create([
+                    'user_id' => $user->id,
+                    'role_id' => $roleId,
+                ]);
+            }
+
+            if (isset($validated['password'])) {
+                $validated['password'] = Hash::make($validated['password']);
+            }
+
             $user->update($validated);
 
             return response()->json([
                 'message' => 'User updated successfully.',
-                'data' => $user->load('role'),
+                'data' => $user->load('roles'),
             ]);
         } catch (Exception $exception) {
             return $this->errorResponse($exception);

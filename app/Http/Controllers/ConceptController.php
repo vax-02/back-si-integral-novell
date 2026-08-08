@@ -114,7 +114,7 @@ class ConceptController extends Controller
     {
         try{
             $concept->delete();
-            return response()->json(['message' => 'Concepto eliminado exitosamente',200]);
+            return response()->json(['message' => 'Concepto eliminado exitosamente'],200);
         }catch(Exception $e){
             return response()->json([],500);
         }
