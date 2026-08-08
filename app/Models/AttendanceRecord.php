@@ -10,8 +10,6 @@ class AttendanceRecord extends Model
         'docente_id',
         'biometric_pin',
         'clock_at',
-        'verify',
-        'workcode',
     ];
 
     protected $casts = [

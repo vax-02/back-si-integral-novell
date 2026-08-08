@@ -140,14 +140,14 @@ class AttendanceController extends Controller
                 $pin = trim($parts[0] ?? '');
                 $dateTime = trim($parts[1] ?? '');
 
+                // Columna 3: indica si es ingreso. 1 = ingreso, ignorar resto.
+                $isEntry = (int) trim($parts[2] ?? 0) === 1;
+
                 $parsed = strtotime($dateTime);
-                if ($pin === '' || $parsed === false) {
+                if ($pin === '' || $parsed === false || !$isEntry) {
                     $invalid++;
                     continue;
                 }
-
-                $verify = (int) trim($parts[3] ?? 0);
-                $workcode = (int) trim($parts[4] ?? 0);
 
                 $key = $pin . '|' . date('Y-m-d H:i:s', $parsed);
                 if (isset($rows[$key])) continue; // duplicado dentro del archivo
@@ -155,8 +155,6 @@ class AttendanceController extends Controller
                 $rows[$key] = [
                     'biometric_pin' => $pin,
                     'clock_at'      => date('Y-m-d H:i:s', $parsed),
-                    'verify'        => $verify,
-                    'workcode'      => $workcode,
                     'created_at'    => now(),
                     'updated_at'    => now(),
                 ];
