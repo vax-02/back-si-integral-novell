@@ -78,17 +78,15 @@ class AttendanceController extends Controller
     public function storeSchedule(Request $request, Docente $docente)
     {
         $request->validate([
-            'day'            => ['required', 'in:' . implode(',', array_values(self::DAYS))],
-            'entry_time'     => ['required', 'date_format:H:i'],
-            'departure_time' => ['nullable', 'date_format:H:i'],
+            'day'        => ['required', 'in:' . implode(',', array_values(self::DAYS))],
+            'entry_time' => ['required', 'date_format:H:i'],
         ]);
 
         $schedule = DocenteSchedule::create([
-            'docente_id'     => $docente->id,
-            'day'            => $request->day,
-            'entry_time'     => $request->entry_time,
-            'departure_time' => $request->departure_time,
-            'is_active'      => true,
+            'docente_id' => $docente->id,
+            'day'        => $request->day,
+            'entry_time' => $request->entry_time,
+            'is_active'  => true,
         ]);
 
         return response()->json([

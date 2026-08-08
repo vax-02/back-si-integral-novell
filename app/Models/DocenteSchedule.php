@@ -10,7 +10,6 @@ class DocenteSchedule extends Model
         'docente_id',
         'day',
         'entry_time',
-        'departure_time',
         'is_active',
     ];
 
