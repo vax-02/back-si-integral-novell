@@ -23,35 +23,22 @@ class AttendanceController extends Controller
     ];
 
     // ─────────────────────────────────────────────────────────────
-    //  PIN BIOMÉTRICO  PUT /api/docentes/{docente}/biometric-pin
+    //  CONFIG (PIN + TOLERANCIA)  PUT /api/docentes/{docente}/attendance-config
     // ─────────────────────────────────────────────────────────────
-    public function setBiometricPin(Request $request, Docente $docente)
+    public function updateConfig(Request $request, Docente $docente)
     {
         $request->validate([
-            'pin' => ['required', 'string', 'max:20', 'unique:docentes,biometric_pin,' . $docente->id],
-        ]);
-
-        $docente->update(['biometric_pin' => $request->pin]);
-
-        return response()->json([
-            'message' => 'PIN biométrico guardado.',
-            'docente' => $docente->only(['id', 'biometric_pin', 'tolerance_minutes']),
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    //  TOLERANCIA  PUT /api/docentes/{docente}/tolerance
-    // ─────────────────────────────────────────────────────────────
-    public function setTolerance(Request $request, Docente $docente)
-    {
-        $request->validate([
+            'pin'     => ['nullable', 'string', 'max:20', 'unique:docentes,biometric_pin,' . $docente->id],
             'minutes' => ['required', 'integer', 'min:0', 'max:60'],
         ]);
 
-        $docente->update(['tolerance_minutes' => $request->minutes]);
+        $docente->update([
+            'biometric_pin'     => $request->filled('pin') ? $request->pin : null,
+            'tolerance_minutes' => $request->minutes,
+        ]);
 
         return response()->json([
-            'message' => 'Tolerancia actualizada.',
+            'message' => 'Configuración de asistencia guardada.',
             'docente' => $docente->only(['id', 'biometric_pin', 'tolerance_minutes']),
         ]);
     }

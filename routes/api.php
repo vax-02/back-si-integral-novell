@@ -69,8 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
 
     // Asistencia / biometría
-    Route::put('docentes/{docente}/biometric-pin', [AttendanceController::class, 'setBiometricPin']);
-    Route::put('docentes/{docente}/tolerance',     [AttendanceController::class, 'setTolerance']);
+    Route::put('docentes/{docente}/attendance-config', [AttendanceController::class, 'updateConfig']);
     Route::get('docentes/{docente}/schedules',     [AttendanceController::class, 'getSchedules']);
     Route::post('docentes/{docente}/schedules',    [AttendanceController::class, 'storeSchedule']);
     Route::delete('docente-schedules/{schedule}',  [AttendanceController::class, 'destroySchedule']);
