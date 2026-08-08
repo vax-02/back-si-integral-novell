@@ -215,10 +215,10 @@ class AttendanceController extends Controller
 
         $results = $docentes->map(function ($docente) use ($from, $to) {
             $schedules = $docente->schedules;
-            $earliestByDay = $schedules->groupBy('day')
-                ->map(fn($items) => $items->min('entry_time'));
+            $byDay = $schedules->groupBy('day')
+                ->map(fn($items) => $items->pluck('entry_time')->sort()->values()->all());
 
-            if ($earliestByDay->isEmpty()) return null;
+            if ($byDay->isEmpty()) return null;
 
             $pin = $docente->biometric_pin;
             $records = $pin
@@ -238,39 +238,68 @@ class AttendanceController extends Controller
             $cursor = $from->copy();
             while ($cursor->lte($to)) {
                 $dayName = self::DAYS[$cursor->dayOfWeek];
-                $reference = $earliestByDay->get($dayName);
                 $dateStr = $cursor->format('Y-m-d');
+                $refs = $byDay->get($dayName);
 
-                if ($reference) {
+                if ($refs) {
                     $totalDays++;
-                    $first = $records->firstWhere(fn($r) => $r->clock_at->format('Y-m-d') === $dateStr);
+                    $dayRecords = $records
+                        ->filter(fn($r) => $r->clock_at->format('Y-m-d') === $dateStr)
+                        ->sortBy('clock_at')
+                        ->values();
 
-                    $allowed = Carbon::parse($reference)->addMinutes($docente->tolerance_minutes);
-                    $minutesLate = null;
-                    $status = 'falta';
+                    // Cada horario del día se valida con su propio ingreso.
+                    $entries = [];
+                    $used = [];
+                    foreach ($refs as $reference) {
+                        $allowed = Carbon::parse($reference)->addMinutes($docente->tolerance_minutes);
 
-                    if ($first) {
-                        $firstTime = $first->clock_at->format('H:i:s');
-                        if (strtotime($firstTime) <= strtotime($allowed->format('H:i:s'))) {
-                            $status = 'puntual';
-                        } else {
-                            $status = 'retraso';
-                            $minutesLate = (int) ceil(
-                                (strtotime($firstTime) - strtotime($allowed->format('H:i:s'))) / 60
+                        // El ingreso más cercano a la referencia que aún no fue usado.
+                        $bestIdx = null;
+                        $bestDiff = PHP_INT_MAX;
+                        foreach ($dayRecords as $i => $r) {
+                            if (isset($used[$i])) continue;
+                            $diff = abs(
+                                strtotime($r->clock_at->format('H:i:s')) - strtotime($reference)
                             );
-                            $totalLate++;
-                            $totalMinutesLate += $minutesLate;
+                            if ($diff < $bestDiff) {
+                                $bestDiff = $diff;
+                                $bestIdx = $i;
+                            }
                         }
+
+                        $clock = null;
+                        $status = 'falta';
+                        $minutesLate = null;
+
+                        if ($bestIdx !== null) {
+                            $used[$bestIdx] = true;
+                            $clock = $dayRecords[$bestIdx]->clock_at->format('H:i:s');
+                            if (strtotime($clock) <= strtotime($allowed->format('H:i:s'))) {
+                                $status = 'puntual';
+                            } else {
+                                $status = 'retraso';
+                                $minutesLate = (int) ceil(
+                                    (strtotime($clock) - strtotime($allowed->format('H:i:s'))) / 60
+                                );
+                                $totalLate++;
+                                $totalMinutesLate += $minutesLate;
+                            }
+                        }
+
+                        $entries[] = [
+                            'reference_time' => $reference,
+                            'first_clock'    => $clock,
+                            'status'         => $status,
+                            'minutes_late'   => $minutesLate,
+                        ];
                     }
 
                     $days[] = [
-                        'date'            => $dateStr,
-                        'day'             => $dayName,
-                        'reference_time'  => $reference,
-                        'tolerance'       => $docente->tolerance_minutes,
-                        'first_clock'     => $first ? $first->clock_at->format('H:i:s') : null,
-                        'status'          => $status,
-                        'minutes_late'    => $minutesLate,
+                        'date'      => $dateStr,
+                        'day'       => $dayName,
+                        'tolerance' => $docente->tolerance_minutes,
+                        'entries'   => $entries,
                     ];
                 }
                 $cursor->addDay();
@@ -278,6 +307,8 @@ class AttendanceController extends Controller
 
             // Agrupación semanal por rango de fechas (lunes a domingo)
             foreach ($days as $day) {
+                $hasLate = collect($day['entries'])
+                    ->contains(fn($e) => $e['status'] === 'retraso');
                 $d = Carbon::parse($day['date']);
                 $start = $d->copy()->startOfWeek();
                 $end = $d->copy()->endOfWeek();
@@ -286,13 +317,15 @@ class AttendanceController extends Controller
                     $weekly[$label] = ['week_label' => $label, 'late_count' => 0, 'total_days' => 0];
                 }
                 $weekly[$label]['total_days']++;
-                if ($day['status'] === 'retraso') {
+                if ($hasLate) {
                     $weekly[$label]['late_count']++;
                 }
             }
 
             // Agrupación mensual
             foreach ($days as $day) {
+                $hasLate = collect($day['entries'])
+                    ->contains(fn($e) => $e['status'] === 'retraso');
                 $d = Carbon::parse($day['date']);
                 $label = $d->format('F Y');
                 $key = $d->format('Y-m');
@@ -300,7 +333,7 @@ class AttendanceController extends Controller
                     $monthly[$key] = ['month' => $key, 'month_label' => $label, 'late_count' => 0, 'total_days' => 0];
                 }
                 $monthly[$key]['total_days']++;
-                if ($day['status'] === 'retraso') {
+                if ($hasLate) {
                     $monthly[$key]['late_count']++;
                 }
             }
