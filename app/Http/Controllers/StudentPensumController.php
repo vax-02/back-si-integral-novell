@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\StudentCareer;
 use App\Models\StudentSubject;
+use App\Models\Qualification;
 use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,11 @@ class StudentPensumController extends Controller
 
             $careersData = [];
 
+            $finalGrades = Qualification::where('student_id', $student->id)
+                ->where('published', true)
+                ->whereNotNull('final_grade')
+                ->pluck('final_grade', 'subject_id');
+
             foreach ($studentCareers as $sc) {
                 $career = $sc->career;
                 if (!$career) continue;
@@ -65,11 +71,11 @@ class StudentPensumController extends Controller
                 }
 
                 // Agrupar materias por nivel
-                $grouped = $subjects->groupBy('level')->map(function ($items, $level) use ($student, $levelLabels) {
+                $grouped = $subjects->groupBy('level')->map(function ($items, $level) use ($student, $levelLabels, $finalGrades) {
                     return [
                         'level' => (int) $level,
                         'label' => $levelLabels[(int) $level] ?? 'Nivel ' . $level,
-                        'subjects' => $items->map(function ($subject) use ($student) {
+                        'subjects' => $items->map(function ($subject) use ($student, $finalGrades) {
                             // Obtener estado desde student_subjects
                             $studentSubject = StudentSubject::where('student_id', $student->id)
                                 ->where('subject_id', $subject->id)
@@ -80,6 +86,7 @@ class StudentPensumController extends Controller
                                 'name' => $subject->name,
                                 'prerequisite_sigla' => $subject->prerequisite?->sigla,
                                 'status' => $studentSubject?->status ?? 'Sin asignar',
+                                'final_grade' => $finalGrades->get($subject->id),
                             ];
                         }),
                     ];
