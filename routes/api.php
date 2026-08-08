@@ -44,6 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('parallels/{id}/first-course', [ParallelController::class,'getFirstCourse']);
     Route::put('parallels/{parallel}/toggle-status', [ParallelController::class,'toggleStatus']);
     Route::get('parallels/{parallel}/materials', [MaterialController::class, 'materialsByParallel']);
+    Route::get('parallels/{parallel}/students', [ParallelController::class, 'students']);
 
 
     Route::apiResource('parallels', ParallelController::class);

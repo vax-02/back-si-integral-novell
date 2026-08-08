@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\Parallel;
+use App\Models\StudentParallel;
 use Exception;
 use Illuminate\Http\Request;
 
@@ -177,6 +178,38 @@ class ParallelController extends Controller
     public function destroy(Parallel $parallel)
     {
         //
+    }
+
+    /**
+     * Lista los estudiantes activos de un paralelo
+     */
+    public function students(Parallel $parallel)
+    {
+        try {
+            $students = StudentParallel::where('parallel_id', $parallel->id)
+                ->where('status', true)
+                ->with('student.user')
+                ->get()
+                ->map(function ($sp) {
+                    $student = $sp->student;
+                    return [
+                        'id'           => $student->id,
+                        'name'         => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                        'ci'           => $student->user->ci ?? '—',
+                        'email'        => $student->user->email ?? '—',
+                        'cellphone'    => $student->user->cellphone ?? '—',
+                        'status'       => $student->user->status ?? 0,
+                    ];
+                });
+
+            return response()->json([
+                'parallel' => $parallel->only(['id', 'paralelo', 'turno', 'limit']),
+                'students' => $students,
+                'total'    => $students->count(),
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     public function toggleStatus(Parallel $parallel)
