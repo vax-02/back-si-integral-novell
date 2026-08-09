@@ -36,19 +36,25 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::get('materials/{material}/download', [MaterialController::class, 'download']);
 });
 
+// Rutas compartidas entre Administrador y Secretaria con URIs estáticas.
+// Se registran ANTES del grupo admin para que ganen al matching contra las rutas
+// salvajes {param} del apiResource (ej. /careers/simple vs /careers/{career}).
+Route::middleware(['auth:sanctum', 'active.user', 'role:1,2'])->group(function () {
+    Route::get('careers/simple', [CareerController::class, 'simple']);
+    Route::get('parallels/{id}/first-course', [ParallelController::class, 'getFirstCourse']);
+    Route::get('pays/cards', [PayController::class, 'dataCards']);
+    Route::get('pays/{pay}/receipt', [PayController::class, 'receipt']);
+});
+
 Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () {
     Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
-    Route::get('pays/{pay}/receipt', [PayController::class,'receipt']);
-    Route::get('careers/simple', [CareerController::class, 'simple']);
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);
     Route::post('careers/import-confirm', [CareerController::class, 'importConfirm']);
     Route::post('careers/{career}/subjects', [CareerController::class, 'storeSubject']);
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
     Route::get('dashboard', [DashboardController::class, 'index']);
-    Route::get('pays/cards', [PayController::class,'dataCards']);
-    Route::get('parallels/{id}/first-course', [ParallelController::class,'getFirstCourse']);
     Route::put('parallels/{parallel}/toggle-status', [ParallelController::class,'toggleStatus']);
     Route::get('parallels/{parallel}/materials', [MaterialController::class, 'materialsByParallel']);
     Route::get('parallels/{parallel}/students', [ParallelController::class, 'students']);
@@ -108,6 +114,20 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::get('grades/parallel/{parallel}/general', [GradeController::class, 'generalByParallel']);
 
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
+});
+
+// Rutas compartidas entre Administrador y Secretaria con URI duplicada del apiResource.
+// Se registran DESPUÉS del grupo admin para reemplazar las versiones role:1
+// (la secretaria solo inscribe estudiantes y cobra; no edita/elimina ni anula).
+Route::middleware(['auth:sanctum', 'active.user', 'role:1,2'])->group(function () {
+    // Inscripción de estudiantes (solo registrar)
+    Route::get('students', [StudentController::class, 'index']);
+    Route::post('students', [StudentController::class, 'store']);
+
+    // Cobros (cobrar, sin anular)
+    Route::get('pays', [PayController::class, 'index']);
+    Route::post('pays', [PayController::class, 'store']);
+    Route::get('concepts', [ConceptController::class, 'index']);
 });
 
 Route::middleware(['auth:sanctum', 'active.user', 'role:3'])->group(function () {
