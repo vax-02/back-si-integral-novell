@@ -236,6 +236,7 @@ class DocenteController extends Controller
                 $user->status = $user->status ? 0 : 1;
                 if(!$user->status){
                     DocenteSubject::where('docente_id',$docente->id)->update(['status' => false]);
+                    $user->tokens()->delete();
                 }
                 $user->save();
             DB::commit();

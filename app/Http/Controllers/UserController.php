@@ -297,6 +297,11 @@ class UserController extends Controller
     {
         try {
             $user->status = $user->status  ? 0 : 1;
+
+            if ((int) $user->status !== 1) {
+                $user->tokens()->delete();
+            }
+
             $user->save();
 
             return response()->json([

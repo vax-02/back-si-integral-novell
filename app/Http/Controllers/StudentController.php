@@ -1252,4 +1252,38 @@ class StudentController extends Controller
     {
         //
     }
+
+    /**
+     * Bloquear/activar el acceso del estudiante al sistema.
+     */
+    public function toggleStatus(Student $student)
+    {
+        try {
+            $user = $student->user;
+
+            if (!$user) {
+                return response()->json([
+                    'message' => 'El estudiante no tiene usuario asociado.',
+                ], 422);
+            }
+
+            $user->status = $user->status ? 0 : 1;
+
+            if ((int) $user->status !== 1) {
+                $user->tokens()->delete();
+            }
+
+            $user->save();
+
+            return response()->json([
+                'message' => $user->status ? 'Estudiante activado.' : 'Estudiante bloqueado.',
+                'status'  => (int) $user->status,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Ocurrió un error al cambiar el estado del estudiante.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

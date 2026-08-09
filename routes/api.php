@@ -20,21 +20,24 @@ use App\Http\Controllers\StudentGradeController;
 use App\Http\Controllers\StudentSubjectController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
-use App\Models\Institution;
 use Illuminate\Support\Facades\Route;
-
-Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
 // Datos públicos de la institución (contacto) para la landing page
 Route::get('institutions', [InstitutionController::class, 'index']);
 
 Route::post('login', [UserController::class, 'login']);
 
-// Receipt route outside auth middleware (uses token query param)
-
-Route::middleware('auth:sanctum')->group(function () {
+// Rutas generales para cualquier usuario autenticado
+Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::put('users/change-password', [UserController::class, 'updatePassword']);
+    Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
 
+    // Descarga de materiales compartida por Admin, Docente y Estudiante
+    Route::get('materials/{material}/download', [MaterialController::class, 'download']);
+});
+
+Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () {
+    Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
     Route::get('pays/{pay}/receipt', [PayController::class,'receipt']);
     Route::get('careers/simple', [CareerController::class, 'simple']);
@@ -52,7 +55,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('parallels/{parallel}/preview-advance', [StudentController::class, 'previewParallelAdvance']);
     Route::post('parallels/{parallel}/advance-level', [StudentController::class, 'advanceParallelLevel']);
 
-
     Route::apiResource('parallels', ParallelController::class);
     Route::apiResource('institutions', InstitutionController::class)->except(['index']);
     Route::apiResource('courses', CourseController::class);
@@ -63,11 +65,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('careers', CareerController::class);
     Route::apiResource('docentes', DocenteController::class);
 
-
     Route::post('student-careers',[StudentController::class, 'addCareer']);
     Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);
     Route::post('students/{student}/reinstate/{career}', [StudentController::class, 'reinstate']);
     Route::put('students/{student}/parallel', [StudentController::class, 'updateParallel']);
+    Route::put('students/{student}/toggle-status', [StudentController::class, 'toggleStatus']);
     Route::post('students/{student}/advance-level', [StudentController::class, 'advanceLevel']);
     Route::post('students/{student}/preview-advance', [StudentController::class, 'previewAdvanceLevel']);
     Route::post('students/{student}/graduate', [StudentController::class, 'graduate']);
@@ -96,31 +98,36 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('schedules/{id}', [ScheduleController::class, 'update']);
     Route::delete('schedules/{id}', [ScheduleController::class, 'destroy']);
 
-    Route::get('student/my-pensum', [StudentPensumController::class, 'myPensum']);
-    Route::get('student/my-schedule', [StudentScheduleController::class, 'mySchedule']);
-    Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
-    Route::get('student/my-grades', [StudentGradeController::class, 'myGrades']);
-    Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
     Route::get('materials', [MaterialController::class, 'index']);
     Route::post('materials', [MaterialController::class, 'store']);
     Route::put('materials/{id}', [MaterialController::class, 'update']);
-    Route::get('materials/{material}/download', [MaterialController::class, 'download']);
     Route::delete('materials/{id}', [MaterialController::class, 'destroy']);
-    Route::get('student/materials', [MaterialController::class, 'studentMaterials']);
 
-    Route::get('grades/students/{parallel}', [GradeController::class, 'getStudents']);
     Route::get('grades/years', [GradeController::class, 'years']);
     Route::get('grades/export', [GradeController::class, 'exportCalificaciones']);
     Route::get('grades/parallel/{parallel}/general', [GradeController::class, 'generalByParallel']);
+
+    Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
+});
+
+Route::middleware(['auth:sanctum', 'active.user', 'role:3'])->group(function () {
+    Route::get('docente/my-subjects', [DocenteController::class, 'mySubjects']);
+
+    Route::get('grades/students/{parallel}', [GradeController::class, 'getStudents']);
     Route::post('grades/save', [GradeController::class, 'saveGrade']);
     Route::post('grades/publish', [GradeController::class, 'publish']);
     Route::post('grades/unpublish', [GradeController::class, 'unpublish']);
     Route::post('grades/columns', [GradeController::class, 'saveColumn']);
     Route::put('grades/columns/{id}', [GradeController::class, 'updateColumn']);
     Route::delete('grades/columns/{id}', [GradeController::class, 'deleteColumn']);
+});
 
-    Route::put('users/{user}/profile', [UserController::class, 'updateProfile']);
-    Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
+Route::middleware(['auth:sanctum', 'active.user', 'role:4'])->group(function () {
+    Route::get('student/my-pensum', [StudentPensumController::class, 'myPensum']);
+    Route::get('student/my-schedule', [StudentScheduleController::class, 'mySchedule']);
+    Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
+    Route::get('student/my-grades', [StudentGradeController::class, 'myGrades']);
+    Route::get('student/materials', [MaterialController::class, 'studentMaterials']);
 });
 
 Route::get('/zip-test', function () {
@@ -133,4 +140,3 @@ Route::get('/zip-test', function () {
         'scanned_ini'     => php_ini_scanned_files(),
     ];
 });
-
