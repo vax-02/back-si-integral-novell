@@ -294,11 +294,12 @@ class GradeController extends Controller
     /**
      * Listado general de calificaciones de un paralelo: matriz estudiantes x materias
      */
-    public function generalByParallel(int $parallelId)
+    public function generalByParallel(int $parallelId, Request $request)
     {
         try {
             $parallel = Parallel::with('course.career')->findOrFail($parallelId);
             $course = $parallel->course;
+            $year = $request->input('year');
 
             // Materias del curso (misma carrera y nivel del curso)
             $subjects = Subject::where('career_id', $course->career_id)
@@ -306,21 +307,31 @@ class GradeController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'sigla']);
 
-            // Estudiantes activos del paralelo
-            $studentIds = StudentParallel::where('parallel_id', $parallelId)
-                ->where('status', true)
-                ->pluck('student_id');
+            // Notas finales (una por estudiante + materia + curso + paralelo)
+            $qualificationsQuery = Qualification::where('course_id', $course->id)
+                ->where('parallel_id', $parallelId)
+                ->whereIn('subject_id', $subjects->pluck('id'));
+
+            if ($year) {
+                $qualificationsQuery->whereYear('updated_at', $year);
+            }
+
+            $qualifications = $qualificationsQuery->get()
+                ->keyBy(fn ($q) => $q->student_id . '_' . $q->subject_id);
+
+            // Estudiantes: si se filtra por gestión, son quienes tienen notas en ese año;
+            // si no, los activos del paralelo (comportamiento actual)
+            if ($year) {
+                $studentIds = $qualifications->pluck('student_id')->unique();
+            } else {
+                $studentIds = StudentParallel::where('parallel_id', $parallelId)
+                    ->where('status', true)
+                    ->pluck('student_id');
+            }
 
             $students = Student::whereIn('id', $studentIds)
                 ->with('user')
                 ->get();
-
-            // Notas finales (una por estudiante + materia + curso + paralelo)
-            $qualifications = Qualification::where('course_id', $course->id)
-                ->where('parallel_id', $parallelId)
-                ->whereIn('subject_id', $subjects->pluck('id'))
-                ->get()
-                ->keyBy(fn ($q) => $q->student_id . '_' . $q->subject_id);
 
             $rows = $students->map(function ($student) use ($subjects, $qualifications) {
                 $grades = [];
@@ -362,6 +373,13 @@ class GradeController extends Controller
                 'parallel' => $parallel,
                 'course' => $course->only(['id', 'name', 'level']),
                 'career' => $course->career ? $course->career->only(['id', 'name', 'type']) : null,
+                'year' => $year ? (int) $year : null,
+                'available_years' => Qualification::where('course_id', $course->id)
+                    ->where('parallel_id', $parallelId)
+                    ->selectRaw('YEAR(updated_at) as y')
+                    ->distinct()
+                    ->orderByDesc('y')
+                    ->pluck('y'),
                 'subjects' => $subjects,
                 'students' => $rows,
                 'summary' => [
@@ -372,6 +390,25 @@ class GradeController extends Controller
                     'total_estudiantes' => $rows->count(),
                     'total_materias' => $subjects->count(),
                 ],
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Gestiones (años) con calificaciones registradas
+     */
+    public function years()
+    {
+        try {
+            $years = Qualification::selectRaw('YEAR(updated_at) as y')
+                ->distinct()
+                ->orderByDesc('y')
+                ->pluck('y');
+
+            return response()->json([
+                'years' => $years,
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);

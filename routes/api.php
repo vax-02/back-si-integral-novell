@@ -102,6 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('student/materials', [MaterialController::class, 'studentMaterials']);
 
     Route::get('grades/students/{parallel}', [GradeController::class, 'getStudents']);
+    Route::get('grades/years', [GradeController::class, 'years']);
     Route::get('grades/parallel/{parallel}/general', [GradeController::class, 'generalByParallel']);
     Route::post('grades/save', [GradeController::class, 'saveGrade']);
     Route::post('grades/publish', [GradeController::class, 'publish']);
