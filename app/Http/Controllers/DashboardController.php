@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 class DashboardController extends Controller
 {
     /** Nota mínima de aprobación */
-    private const PASSING_GRADE = 51;
+    private const PASSING_GRADE = 61;
 
     public function index()
     {

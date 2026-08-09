@@ -1097,7 +1097,7 @@ class StudentController extends Controller
             $subject = $careerSubjects->firstWhere('id', $ss->subject_id);
             $qual = $publishedGrades->get($ss->subject_id);
 
-            $passed = $qual && $qual->final_grade !== null && $qual->final_grade >= 51;
+            $passed = $qual && $qual->final_grade !== null && $qual->final_grade >= 61;
 
             if ($passed) {
                 if ($commit) {

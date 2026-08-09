@@ -367,8 +367,8 @@ class GradeController extends Controller
                 }
             }
 
-            $approved = collect($allGrades)->filter(fn ($g) => $g >= 51)->count();
-            $failed = collect($allGrades)->filter(fn ($g) => $g < 51)->count();
+            $approved = collect($allGrades)->filter(fn ($g) => $g >= 61)->count();
+            $failed = collect($allGrades)->filter(fn ($g) => $g < 61)->count();
 
             return response()->json([
                 'parallel' => $parallel,
