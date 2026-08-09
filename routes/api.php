@@ -25,6 +25,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
+// Datos públicos de la institución (contacto) para la landing page
+Route::get('institutions', [InstitutionController::class, 'index']);
+
 Route::post('login', [UserController::class, 'login']);
 
 // Receipt route outside auth middleware (uses token query param)
@@ -51,7 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     Route::apiResource('parallels', ParallelController::class);
-    Route::apiResource('institutions', InstitutionController::class);
+    Route::apiResource('institutions', InstitutionController::class)->except(['index']);
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('concepts', ConceptController::class);
     Route::apiResource('pays', PayController::class);

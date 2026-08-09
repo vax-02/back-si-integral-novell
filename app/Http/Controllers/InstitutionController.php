@@ -17,12 +17,16 @@ class InstitutionController extends Controller
             $i = Institution::first();
 
             return response()->json([
-                'address' => $i->address,
-                'cellphone' => $i->cellphone,
-                'email' => $i->email,
+                'address' => $i->address ?? '',
+                'cellphone' => $i->cellphone ?? '',
+                'email' => $i->email ?? '',
             ]);
         }catch(Exception $e){
-            return response()->json([]);
+            return response()->json([
+                'address' => '',
+                'cellphone' => '',
+                'email' => '',
+            ]);
         }
     }
 
