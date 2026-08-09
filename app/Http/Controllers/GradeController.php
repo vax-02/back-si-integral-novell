@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Parallel;
 use App\Models\StudentParallel;
 use App\Models\Subject;
+use App\Services\GradeExportService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -410,6 +411,38 @@ class GradeController extends Controller
             return response()->json([
                 'years' => $years,
             ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Exportar calificaciones de un paralelo y gestión a Excel.
+     * Hoja "Centralizador" con todas las materias del curso + una pestaña por materia.
+     */
+    public function exportCalificaciones(Request $request)
+    {
+        $request->validate([
+            'parallel_id' => 'required|integer|exists:parallels,id',
+            'year' => 'required|integer|min:1900|max:2100',
+        ]);
+
+        try {
+            $service = new GradeExportService();
+            $path = $service->generate((int) $request->parallel_id, (int) $request->year);
+
+            $parallel = Parallel::with('course')->find($request->parallel_id);
+            $filename = 'Calificaciones_' . ($parallel?->course?->name ?? 'curso')
+                . '_' . ($parallel?->paralelo ?? '')
+                . '_' . $request->year . '.xlsx';
+            $filename = str_replace(' ', '_', $filename);
+
+            return response()->download($path, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store, no-cache, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+            ])->deleteFileAfterSend(true);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
