@@ -16,10 +16,10 @@ class AttendanceController extends Controller
         0 => 'Domingo',
         1 => 'Lunes',
         2 => 'Martes',
-        3 => 'Miércoles',
+        3 => 'Miercoles',
         4 => 'Jueves',
         5 => 'Viernes',
-        6 => 'Sábado',
+        6 => 'Sabado',
     ];
 
     // ─────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ class AttendanceController extends Controller
     public function getSchedules(Docente $docente)
     {
         $schedules = $docente->schedules()
-            ->orderByRaw("FIELD(day, 'Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo')")
+            ->orderByRaw("FIELD(day, 'Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo')")
             ->orderBy('entry_time')
             ->get();
 
@@ -254,14 +254,20 @@ class AttendanceController extends Controller
                     foreach ($refs as $reference) {
                         $allowed = Carbon::parse($reference)->addMinutes($docente->tolerance_minutes);
 
-                        // El ingreso más cercano a la referencia que aún no fue usado.
+                        // Buscar el ingreso más cercano DESPUÉS del horario (o antes dentro de tolerancia),
+                        // que no exceda un margen razonable (6 horas después del horario).
+                        $refTime = strtotime($reference);
+                        $maxWindow = $refTime + (6 * 3600); // hasta 6 horas después del horario
                         $bestIdx = null;
                         $bestDiff = PHP_INT_MAX;
                         foreach ($dayRecords as $i => $r) {
                             if (isset($used[$i])) continue;
-                            $diff = abs(
-                                strtotime($r->clock_at->format('H:i:s')) - strtotime($reference)
-                            );
+                            $clockTime = strtotime($r->clock_at->format('H:i:s'));
+                            // El ingreso debe estar entre "horario - tolerancia" y "horario + 6 horas"
+                            // No puede ser horas antes del horario (ej: ingreso a las 18:00 para horario 09:00)
+                            if ($clockTime < strtotime($reference) - ($docente->tolerance_minutes * 60)) continue;
+                            if ($clockTime > $maxWindow) continue;
+                            $diff = abs($clockTime - $refTime);
                             if ($diff < $bestDiff) {
                                 $bestDiff = $diff;
                                 $bestIdx = $i;
