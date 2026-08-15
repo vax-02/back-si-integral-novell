@@ -313,7 +313,7 @@ class GradeExportService
 
         $sheet->setCellValue('E5', mb_strtoupper($career->name));
         $sheet->setCellValue('E6', '');
-        $sheet->setCellValue('E7', '');
+        $sheet->setCellValue('E7', mb_strtoupper($career->area));
         $sheet->setCellValue('E8', $subject->name);
         $sheet->setCellValue('J8', $subject->sigla);
         $sheet->setCellValue('E9', $this->docenteName($subject->id));

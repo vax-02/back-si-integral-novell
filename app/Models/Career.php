@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Career extends Model
 {
-    protected $fillable = ['name', 'duration', 'type', 'status'];
+    protected $fillable = ['name', 'duration', 'type', 'area', 'status'];
 
     public function students()
     {
