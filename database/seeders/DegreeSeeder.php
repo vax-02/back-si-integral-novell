@@ -13,9 +13,9 @@ class DegreeSeeder extends Seeder
      */
     public function run(): void
     {
-        Degree::firstOrCreate(['name' => 'Licenciado(a)']);
-        Degree::firstOrCreate(['name' => 'Ingeniero(a)']);
-        Degree::firstOrCreate(['name' => 'Técnico Superior']);
-        Degree::firstOrCreate(['name' => 'Técnico Medio']);
+        Degree::firstOrCreate(['name' => 'Licenciado(a)'], ['abbreviation' => 'Lic.']);
+        Degree::firstOrCreate(['name' => 'Ingeniero(a)'], ['abbreviation' => 'Ing.']);
+        Degree::firstOrCreate(['name' => 'Técnico Superior'], ['abbreviation' => 'T.S.']);
+        Degree::firstOrCreate(['name' => 'Técnico Medio'], ['abbreviation' => 'T.M.']);
     }
 }

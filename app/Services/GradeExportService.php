@@ -159,14 +159,17 @@ class GradeExportService
         }
         $docente = DB::table('docentes')
             ->join('users', 'users.id', '=', 'docentes.user_id')
+            ->leftJoin('degrees', 'degrees.id', '=', 'docentes.degree_id')
             ->where('docentes.id', $docenteId)
-            ->select('users.name', 'users.first_lastname', 'users.second_lastname')
+            ->select('users.name', 'users.first_lastname', 'users.second_lastname', 'degrees.abbreviation')
             ->first();
 
         if (!$docente) {
             return '';
         }
-        return trim(($docente->first_lastname ?? '') . ' ' . ($docente->second_lastname ?? '') . ' ' . $docente->name);
+        $name = trim(($docente->first_lastname ?? '') . ' ' . ($docente->second_lastname ?? '') . ' ' . $docente->name);
+        $abbreviation = $docente->abbreviation ?? '';
+        return $abbreviation ? trim($abbreviation . ' ' . $name) : $name;
     }
 
     private function finalGrade(int $studentId, int $subjectId): ?float
