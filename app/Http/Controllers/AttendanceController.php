@@ -22,6 +22,24 @@ class AttendanceController extends Controller
         6 => 'Sabado',
     ];
 
+    private static array $DAY_MAP = [
+        'Lunes'     => 'Lunes',
+        'Martes'    => 'Martes',
+        'Miércoles' => 'Miercoles',
+        'Miercoles' => 'Miercoles',
+        'Jueves'    => 'Jueves',
+        'Viernes'   => 'Viernes',
+        'Sábado'    => 'Sabado',
+        'Sabado'    => 'Sabado',
+        'Domingo'   => 'Domingo',
+    ];
+
+    private static function normalizeDay(?string $day): string
+    {
+        if ($day === null) return '';
+        return self::$DAY_MAP[$day] ?? $day;
+    }
+
     // ─────────────────────────────────────────────────────────────
     //  CONFIG (PIN + TOLERANCIA)  PUT /api/docentes/{docente}/attendance-config
     // ─────────────────────────────────────────────────────────────
@@ -64,6 +82,9 @@ class AttendanceController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function storeSchedule(Request $request, Docente $docente)
     {
+        // Normalizar acentos: el frontend puede enviar "Miércoles" o "Sábado"
+        $day = $this->normalizeDay($request->day);
+
         $request->validate([
             'day'        => ['required', 'in:' . implode(',', array_values(self::DAYS))],
             'entry_time' => ['required', 'date_format:H:i'],
@@ -71,7 +92,7 @@ class AttendanceController extends Controller
 
         $schedule = DocenteSchedule::create([
             'docente_id' => $docente->id,
-            'day'        => $request->day,
+            'day'        => $day,
             'entry_time' => $request->entry_time,
             'is_active'  => true,
         ]);
@@ -248,48 +269,67 @@ class AttendanceController extends Controller
                         ->sortBy('clock_at')
                         ->values();
 
-                    // Cada horario del día se valida con su propio ingreso.
-                    $entries = [];
-                    $used = [];
-                    foreach ($refs as $reference) {
-                        $allowed = Carbon::parse($reference)->addMinutes($docente->tolerance_minutes);
-
-                        // Buscar el ingreso más cercano DESPUÉS del horario (o antes dentro de tolerancia),
-                        // que no exceda un margen razonable (6 horas después del horario).
-                        $refTime = strtotime($reference);
-                        $maxWindow = $refTime + (6 * 3600); // hasta 6 horas después del horario
-                        $bestIdx = null;
+                    // Matching: cada ingreso se asigna al horario más cercano.
+                    // Luego, cada horario que no tiene ingreso asignado es "falta".
+                    $clockToRef = []; // idx_clock => idx_ref
+                    $usedClocks = [];
+                    foreach ($dayRecords as $ci => $r) {
+                        $clockTime = strtotime($r->clock_at->format('H:i:s'));
+                        $bestRef = null;
                         $bestDiff = PHP_INT_MAX;
-                        foreach ($dayRecords as $i => $r) {
-                            if (isset($used[$i])) continue;
-                            $clockTime = strtotime($r->clock_at->format('H:i:s'));
-                            // El ingreso debe estar entre "horario - tolerancia" y "horario + 6 horas"
-                            // No puede ser horas antes del horario (ej: ingreso a las 18:00 para horario 09:00)
+                        foreach ($refs as $ri => $reference) {
+                            $refTime = strtotime($reference);
+                            $maxWindow = $refTime + (6 * 3600);
                             if ($clockTime < strtotime($reference) - ($docente->tolerance_minutes * 60)) continue;
                             if ($clockTime > $maxWindow) continue;
                             $diff = abs($clockTime - $refTime);
                             if ($diff < $bestDiff) {
                                 $bestDiff = $diff;
-                                $bestIdx = $i;
+                                $bestRef = $ri;
                             }
                         }
+                        if ($bestRef !== null && !isset($clockToRef[$ci])) {
+                            // Verificar que este ref no esté ya tomado por un ingreso más cercano
+                            $alreadyAssigned = false;
+                            foreach ($clockToRef as $assignedCi => $assignedRef) {
+                                if ($assignedRef === $bestRef) {
+                                    $oldClockTime = strtotime($dayRecords[$assignedCi]->clock_at->format('H:i:s'));
+                                    if ($bestDiff < abs($oldClockTime - strtotime($refs[$bestRef]))) {
+                                        unset($clockToRef[$assignedCi]);
+                                    } else {
+                                        $alreadyAssigned = true;
+                                    }
+                                    break;
+                                }
+                            }
+                            if (!$alreadyAssigned) {
+                                $clockToRef[$ci] = $bestRef;
+                            }
+                        }
+                    }
 
+                    $entries = [];
+                    foreach ($refs as $ri => $reference) {
+                        $allowed = Carbon::parse($reference)->addMinutes($docente->tolerance_minutes);
                         $clock = null;
                         $status = 'falta';
                         $minutesLate = null;
 
-                        if ($bestIdx !== null) {
-                            $used[$bestIdx] = true;
-                            $clock = $dayRecords[$bestIdx]->clock_at->format('H:i:s');
-                            if (strtotime($clock) <= strtotime($allowed->format('H:i:s'))) {
-                                $status = 'puntual';
-                            } else {
-                                $status = 'retraso';
-                                $minutesLate = (int) ceil(
-                                    (strtotime($clock) - strtotime($allowed->format('H:i:s'))) / 60
-                                );
-                                $totalLate++;
-                                $totalMinutesLate += $minutesLate;
+                        // Buscar si algún ingreso fue asignado a este horario
+                        foreach ($clockToRef as $ci => $assignedRef) {
+                            if ($assignedRef === $ri) {
+                                $clock = $dayRecords[$ci]->clock_at->format('H:i:s');
+                                if (strtotime($clock) <= strtotime($allowed->format('H:i:s'))) {
+                                    $status = 'puntual';
+                                } else {
+                                    $status = 'retraso';
+                                    $minutesLate = (int) ceil(
+                                        (strtotime($clock) - strtotime($allowed->format('H:i:s'))) / 60
+                                    );
+                                    $totalLate++;
+                                    $totalMinutesLate += $minutesLate;
+                                }
+                                break;
                             }
                         }
 
