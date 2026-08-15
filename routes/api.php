@@ -146,6 +146,8 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:3'])->group(function () 
     Route::post('materials', [MaterialController::class, 'store']);
     Route::put('materials/{id}', [MaterialController::class, 'update']);
     Route::delete('materials/{id}', [MaterialController::class, 'destroy']);
+
+    Route::get('attendance/my-attendance', [AttendanceController::class, 'myAttendance']);
 });
 
 Route::middleware(['auth:sanctum', 'active.user', 'role:4'])->group(function () {

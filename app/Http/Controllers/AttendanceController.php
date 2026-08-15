@@ -403,4 +403,182 @@ class AttendanceController extends Controller
 
         return response()->json(['docentes' => $results]);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    //  MI ASISTENCIA (solo lectura)  GET /api/attendance/my-attendance
+    // ─────────────────────────────────────────────────────────────
+    public function myAttendance(Request $request)
+    {
+        $request->validate([
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to'   => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        $user = $request->user();
+        $docente = Docente::where('user_id', $user->id)->first();
+
+        if (!$docente) {
+            return response()->json(['docente' => null]);
+        }
+
+        $from = Carbon::parse($request->from)->startOfDay();
+        $to = Carbon::parse($request->to)->endOfDay();
+        if ($from->gt($to)) {
+            return response()->json(['error' => 'La fecha inicial no puede ser mayor que la final.'], 422);
+        }
+
+        $schedules = $docente->schedules;
+        $byDay = $schedules->groupBy('day')
+            ->map(fn($items) => $items->pluck('entry_time')->sort()->values()->all());
+
+        if ($byDay->isEmpty()) {
+            return response()->json(['docente' => null]);
+        }
+
+        $pin = $docente->biometric_pin;
+        $records = $pin
+            ? AttendanceRecord::where('biometric_pin', $pin)
+                ->whereBetween('clock_at', [$from, $to])
+                ->orderBy('clock_at')
+                ->get()
+            : collect();
+
+        $days = [];
+        $weekly = [];
+        $monthly = [];
+        $totalLate = 0;
+        $totalDays = 0;
+        $totalMinutesLate = 0;
+
+        $cursor = $from->copy();
+        while ($cursor->lte($to)) {
+            $dayName = self::DAYS[$cursor->dayOfWeek];
+            $dateStr = $cursor->format('Y-m-d');
+            $refs = $byDay->get($dayName);
+
+            if ($refs) {
+                $totalDays++;
+                $dayRecords = $records
+                    ->filter(fn($r) => $r->clock_at->format('Y-m-d') === $dateStr)
+                    ->sortBy('clock_at')
+                    ->values();
+
+                $clockToRef = [];
+                foreach ($dayRecords as $ci => $r) {
+                    $clockTime = strtotime($r->clock_at->format('H:i:s'));
+                    $bestRef = null;
+                    $bestDiff = PHP_INT_MAX;
+                    foreach ($refs as $ri => $reference) {
+                        $refTime = strtotime($reference);
+                        $maxWindow = $refTime + (6 * 3600);
+                        if ($clockTime < strtotime($reference) - ($docente->tolerance_minutes * 60)) continue;
+                        if ($clockTime > $maxWindow) continue;
+                        $diff = abs($clockTime - $refTime);
+                        if ($diff < $bestDiff) {
+                            $bestDiff = $diff;
+                            $bestRef = $ri;
+                        }
+                    }
+                    if ($bestRef !== null && !isset($clockToRef[$ci])) {
+                        $alreadyAssigned = false;
+                        foreach ($clockToRef as $assignedCi => $assignedRef) {
+                            if ($assignedRef === $bestRef) {
+                                $oldClockTime = strtotime($dayRecords[$assignedCi]->clock_at->format('H:i:s'));
+                                if ($bestDiff < abs($oldClockTime - strtotime($refs[$bestRef]))) {
+                                    unset($clockToRef[$assignedCi]);
+                                } else {
+                                    $alreadyAssigned = true;
+                                }
+                                break;
+                            }
+                        }
+                        if (!$alreadyAssigned) {
+                            $clockToRef[$ci] = $bestRef;
+                        }
+                    }
+                }
+
+                $entries = [];
+                foreach ($refs as $ri => $reference) {
+                    $allowed = Carbon::parse($reference)->addMinutes($docente->tolerance_minutes);
+                    $clock = null;
+                    $status = 'falta';
+                    $minutesLate = null;
+
+                    foreach ($clockToRef as $ci => $assignedRef) {
+                        if ($assignedRef === $ri) {
+                            $clock = $dayRecords[$ci]->clock_at->format('H:i:s');
+                            if (strtotime($clock) <= strtotime($allowed->format('H:i:s'))) {
+                                $status = 'puntual';
+                            } else {
+                                $status = 'retraso';
+                                $minutesLate = (int) ceil(
+                                    (strtotime($clock) - strtotime($allowed->format('H:i:s'))) / 60
+                                );
+                                $totalLate++;
+                                $totalMinutesLate += $minutesLate;
+                            }
+                            break;
+                        }
+                    }
+
+                    $entries[] = [
+                        'reference_time' => $reference,
+                        'first_clock'    => $clock,
+                        'status'         => $status,
+                        'minutes_late'   => $minutesLate,
+                    ];
+                }
+
+                $days[] = [
+                    'date'      => $dateStr,
+                    'day'       => $dayName,
+                    'tolerance' => $docente->tolerance_minutes,
+                    'entries'   => $entries,
+                ];
+            }
+            $cursor->addDay();
+        }
+
+        foreach ($days as $day) {
+            $hasLate = collect($day['entries'])->contains(fn($e) => $e['status'] === 'retraso');
+            $d = Carbon::parse($day['date']);
+            $start = $d->copy()->startOfWeek();
+            $end = $d->copy()->endOfWeek();
+            $label = $start->format('d/m') . ' – ' . $end->format('d/m');
+            if (!isset($weekly[$label])) {
+                $weekly[$label] = ['week_label' => $label, 'late_count' => 0, 'total_days' => 0];
+            }
+            $weekly[$label]['total_days']++;
+            if ($hasLate) $weekly[$label]['late_count']++;
+        }
+
+        foreach ($days as $day) {
+            $hasLate = collect($day['entries'])->contains(fn($e) => $e['status'] === 'retraso');
+            $d = Carbon::parse($day['date']);
+            $label = $d->format('F Y');
+            $key = $d->format('Y-m');
+            if (!isset($monthly[$key])) {
+                $monthly[$key] = ['month' => $key, 'month_label' => $label, 'late_count' => 0, 'total_days' => 0];
+            }
+            $monthly[$key]['total_days']++;
+            if ($hasLate) $monthly[$key]['late_count']++;
+        }
+
+        return response()->json([
+            'docente' => [
+                'id'            => $docente->id,
+                'name'          => trim(($docente->user->name ?? '') . ' ' . ($docente->user->first_lastname ?? '') . ' ' . ($docente->user->second_lastname ?? '')),
+                'tolerance'     => $docente->tolerance_minutes,
+                'days'          => $days,
+                'weekly'        => array_values($weekly),
+                'monthly'       => array_values($monthly),
+                'totals'        => [
+                    'total_days'         => $totalDays,
+                    'late_count'         => $totalLate,
+                    'total_minutes_late' => $totalMinutesLate,
+                ],
+            ],
+        ]);
+    }
 }
