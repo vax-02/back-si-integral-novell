@@ -14,6 +14,7 @@ use App\Http\Controllers\ParallelController;
 use App\Http\Controllers\PayController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentPayController;
 use App\Http\Controllers\StudentPensumController;
 use App\Http\Controllers\StudentScheduleController;
 use App\Http\Controllers\StudentGradeController;
@@ -147,6 +148,7 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:4'])->group(function () 
     Route::get('student/my-schedule', [StudentScheduleController::class, 'mySchedule']);
     Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
     Route::get('student/my-grades', [StudentGradeController::class, 'myGrades']);
+    Route::get('student/my-pays', [StudentPayController::class, 'myPays']);
     Route::get('student/materials', [MaterialController::class, 'studentMaterials']);
 });
 
