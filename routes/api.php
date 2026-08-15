@@ -141,6 +141,11 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:3'])->group(function () 
     Route::post('grades/columns', [GradeController::class, 'saveColumn']);
     Route::put('grades/columns/{id}', [GradeController::class, 'updateColumn']);
     Route::delete('grades/columns/{id}', [GradeController::class, 'deleteColumn']);
+
+    Route::get('materials', [MaterialController::class, 'index']);
+    Route::post('materials', [MaterialController::class, 'store']);
+    Route::put('materials/{id}', [MaterialController::class, 'update']);
+    Route::delete('materials/{id}', [MaterialController::class, 'destroy']);
 });
 
 Route::middleware(['auth:sanctum', 'active.user', 'role:4'])->group(function () {

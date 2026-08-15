@@ -15,7 +15,7 @@ use Ramsey\Uuid\Type\Integer;
 class MaterialController extends Controller
 {
     /**
-     * Listar materiales del docente logueado para una materia
+     * Listar materiales del docente logueados, agrupados por archivo
      */
     public function index(Request $request)
     {
@@ -36,8 +36,34 @@ class MaterialController extends Controller
 
             $materials = $query->orderBy('created_at', 'desc')->get();
 
+            // Agrupar por file_path para mostrar un solo registro por archivo
+            $grouped = $materials->groupBy('file_path')->map(function ($group) {
+                $first = $group->first();
+                $allParallels = $group->every('all_parallels', true);
+
+                return [
+                    'id'            => $first->id,
+                    'file_path'     => $first->file_path,
+                    'file_name'     => $first->file_name,
+                    'file_type'     => $first->file_type,
+                    'title'         => $first->title,
+                    'description'   => $first->description,
+                    'created_at'    => $first->created_at,
+                    'all_parallels' => $allParallels,
+                    'subjects'      => $group->map(function ($m) {
+                        return [
+                            'id'     => $m->subject_id,
+                            'name'   => $m->subject->name ?? null,
+                            'sigla'  => $m->subject->sigla ?? null,
+                        ];
+                    })->unique('id')->values(),
+                    'parallels'     => $group->pluck('parallels')->flatten()->unique('id')->values(),
+                    'material_ids'  => $group->pluck('id')->values(),
+                ];
+            })->values();
+
             return response()->json([
-                'materials' => $materials,
+                'materials' => $grouped,
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -356,18 +382,19 @@ class MaterialController extends Controller
                 ->where('docente_id', $docente->id)
                 ->firstOrFail();
 
-            // Eliminar archivo físico solo si ninguna otra materia lo comparte
-            $shared = Material::where('file_path', $material->file_path)
-                ->where('id', '!=', $material->id)
-                ->exists();
+            // Obtener todos los materiales que comparten el mismo archivo
+            $group = Material::where('file_path', $material->file_path)
+                ->where('docente_id', $docente->id)
+                ->get();
 
-            if (!$shared) {
-                Storage::disk('public')->delete($material->file_path);
+            // Eliminar relaciones de todos
+            foreach ($group as $m) {
+                $m->parallels()->detach();
+                $m->delete();
             }
 
-            // Eliminar relaciones
-            $material->parallels()->detach();
-            $material->delete();
+            // Eliminar archivo físico
+            Storage::disk('public')->delete($material->file_path);
 
             return response()->json([
                 'message' => 'Material eliminado correctamente.',
