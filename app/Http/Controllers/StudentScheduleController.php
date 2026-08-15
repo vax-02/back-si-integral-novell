@@ -67,6 +67,7 @@ class StudentScheduleController extends Controller
                         'day' => $schedule->day,
                         'start_time' => substr($schedule->start_time, 0, 5),
                         'end_time' => substr($schedule->end_time, 0, 5),
+                        'subject_id' => $schedule->subject_id,
                         'subject' => [
                             'sigla' => $schedule->subject?->sigla,
                             'name' => $schedule->subject?->name,
