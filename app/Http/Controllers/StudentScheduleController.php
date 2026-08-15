@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\StudentParallel;
 use App\Models\Schedule;
+use App\Models\DocenteSubject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -24,6 +25,7 @@ class StudentScheduleController extends Controller
             }
 
             $studentParallels = StudentParallel::where('student_id', $student->id)
+                ->where('status', 1)
                 ->with([
                     'parallel.course.career',
                 ])
@@ -46,19 +48,21 @@ class StudentScheduleController extends Controller
                 if (!$career) continue;
 
                 $schedules = Schedule::where('parallel_id', $parallel->id)
-                    ->with([
-                        'subject' => function ($q) use ($parallel) {
-                            $q->with(['docentes' => function ($q) use ($parallel) {
-                                $q->wherePivot('parallel_id', $parallel->id)
-                                  ->wherePivot('status', true);
-                            }]);
-                        },
-                    ])
+                    ->with('subject')
+                    ->orderBy('day')
                     ->orderBy('start_time')
                     ->get();
 
-                $scheduleData = $schedules->map(function ($schedule) {
-                    $docente = $schedule->subject?->docentes?->first();
+                $scheduleData = $schedules->map(function ($schedule) use ($parallel) {
+                    // Buscar docente asignado a esta materia en este paralelo
+                    $docenteAssignment = DocenteSubject::where('subject_id', $schedule->subject_id)
+                        ->where('parallel_id', $parallel->id)
+                        ->where('status', 1)
+                        ->with('docente')
+                        ->first();
+
+                    $docente = $docenteAssignment?->docente;
+
                     return [
                         'day' => $schedule->day,
                         'start_time' => substr($schedule->start_time, 0, 5),
