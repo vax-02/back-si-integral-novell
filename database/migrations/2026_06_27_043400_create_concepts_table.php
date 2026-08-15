@@ -17,7 +17,7 @@ return new class extends Migration
                 ->constrained()
                 ->nullable()
                 ->onDelete('cascade');
-            $table->enum('type',["Matricula","Mensualidad","Otro"]);
+            $table->enum('type',["Matricula","Mensualidad","Otro","Tramite"]);
             $table->string('description')->nullable(); //Llenar en caso de type:otro
             $table->year('gestion');
             $table->enum('semestre',[1,2])->nullable(); //Semestre 1 o 2

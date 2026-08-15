@@ -64,13 +64,15 @@ class ConceptController extends Controller
     public function store(Request $request)
     {
         try {
+            $type = $request->input('type');
+
             $validated = $request->validate([
-                'career_id'  => 'required|integer|exists:careers,id',
-                'type'       => 'required|string|in:Matricula,Mensualidad,Otro',
-                'gestion'    => 'required|integer',
-                'semestre'   => 'nullable|integer|in:1,2',
-                'amount'     => 'required|numeric|min:0',
-                'description'=> 'nullable|string',
+                'career_id'   => 'required|integer|exists:careers,id',
+                'type'        => 'required|string|in:Matricula,Mensualidad,Otro,Tramite',
+                'gestion'     => 'required|integer',
+                'semestre'    => 'nullable|integer|in:1,2',
+                'amount'      => 'required|numeric|min:0',
+                'description' => in_array($type, ['Otro', 'Tramite']) ? 'required|string' : 'nullable|string',
             ]);
 
             $concept = Concept::create($validated);
