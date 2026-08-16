@@ -18,8 +18,6 @@ return new class extends Migration
 
             $table->string('biometric_pin', 20);
             $table->dateTime('clock_at');
-            $table->tinyInteger('verify')->default(0);
-            $table->tinyInteger('workcode')->default(0);
 
             $table->timestamps();
 

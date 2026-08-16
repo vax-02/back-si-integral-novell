@@ -24,7 +24,7 @@ return new class extends Migration
                 ->constrained()
                 ->onDelete('cascade');
             $table->integer("qualification");
-            
+            $table->boolean('published')->default(false)->after('final_grade');
         });
     }
 

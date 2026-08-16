@@ -20,7 +20,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('file_path');
             $table->string('file_name');
-            $table->string('file_type', 50)->nullable(); // pdf, image, video, etc.
+            $table->string('file_type', 200)->nullable(); // pdf, image, video, etc.
             $table->boolean('all_parallels')->default(false);
             $table->timestamps();
         });
