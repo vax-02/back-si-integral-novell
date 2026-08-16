@@ -8,6 +8,7 @@ use App\Models\Course;
 use App\Models\Qualification;
 use App\Models\Student;
 use App\Models\StudentCareer;
+use App\Models\StudentConvalidation;
 use App\Models\StudentParallel;
 use App\Models\StudentSubject;
 use App\Models\Subject;
@@ -100,6 +101,9 @@ class StudentController extends Controller
             'school_diploma' => ['required'],
             'carnet' => ['required'],
             'parallel_id' => ['required', 'exists:parallels,id'],
+
+            // Convalidación (opcional)
+            'convalidation_type' => ['nullable', 'in:BTH,Tecnico_Medio'],
         ], [
             'ci.unique' => 'El C.I. ya está registrado',
             'email.unique' => 'El correo electrónico ya está registrado',
@@ -146,21 +150,46 @@ class StudentController extends Controller
                 'turno' => $parallel->turno,
             ]);
 
+            // Determinar nivel de inicio según convalidación
+            $startLevel = 1;
+            if (!empty($validated['convalidation_type'])) {
+                $career = Career::findOrFail($validated['career_id']);
+                $startLevel = $this->calculateConvalidationStartLevel(
+                    $validated['convalidation_type'],
+                    $career
+                );
 
-            //Asignarle materias
-            $subjets = Subject::where('career_id',$validated['career_id'])->orderBy('level')->get();
-            foreach($subjets as $s){
+                // Registrar convalidación
+                StudentConvalidation::create([
+                    'student_id' => $student->id,
+                    'career_id' => $validated['career_id'],
+                    'type' => $validated['convalidation_type'],
+                    'start_level' => $startLevel,
+                ]);
+            }
+
+            // Asignar materias DESDE el nivel de inicio (las anteriores NO se crean)
+            $subjects = Subject::where('career_id', $validated['career_id'])
+                ->where('level', '>=', $startLevel)
+                ->orderBy('level')
+                ->get();
+
+            foreach ($subjects as $s) {
                 StudentSubject::create([
                     'student_id' => $student->id,
                     'subject_id' => $s->id,
-                    'status' => $s->level == 1 ? 'Registrado' : 'Falta'
+                    'status' => $s->level == $startLevel ? 'Registrado' : 'Falta'
                 ]);
             }
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Estudiante registrado correctamente.'
+                'message' => 'Estudiante registrado correctamente.',
+                'convalidation' => !empty($validated['convalidation_type']) ? [
+                    'type' => $validated['convalidation_type'],
+                    'start_level' => $startLevel,
+                ] : null,
             ], 201);
 
         } catch (Exception $e) {
@@ -169,9 +198,26 @@ class StudentController extends Controller
 
             return response()->json([
                 'message' => 'Error al registrar el estudiante.',
-                'error' => $e->getMessage(), // quitar en producción
+                'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Calcula el nivel de inicio según tipo de convalidación y tipo de carrera.
+     * BTH: Anual → nivel 2, Semestral → nivel 3
+     * Técnico Medio: Anual → nivel 3, Semestral → nivel 5
+     */
+    private function calculateConvalidationStartLevel(string $type, Career $career): int
+    {
+        $isSemestral = (int) $career->type === 2;
+
+        if ($type === 'BTH') {
+            return $isSemestral ? 3 : 2;
+        }
+
+        // Tecnico_Medio
+        return $isSemestral ? 5 : 3;
     }
 
 
@@ -1198,6 +1244,7 @@ class StudentController extends Controller
             'student_id'  => ['required', 'exists:students,id'],
             'career_id'   => ['required', 'exists:careers,id'],
             'parallel_id' => ['required', 'exists:parallels,id'],
+            'convalidation_type' => ['nullable', 'in:BTH,Tecnico_Medio'],
         ]);
 
         DB::beginTransaction();
@@ -1212,11 +1259,11 @@ class StudentController extends Controller
 
             if ($exists) {
                 return response()->json([
-                    'message' => 'El estudiante ya está inscrito en esta carrera.xx'
+                    'message' => 'El estudiante ya está inscrito en esta carrera.'
                 ], 409);
             }
 
-            $studentCareer = StudentCareer::create([
+            StudentCareer::create([
                 'student_id' => $validated['student_id'],
                 'career_id'  => $validated['career_id'],
                 'enrolled'   => now(),
@@ -1229,11 +1276,47 @@ class StudentController extends Controller
                 'parallel_id' => $request->parallel_id,
             ]);
 
+            // Determinar nivel de inicio según convalidación
+            $startLevel = 1;
+            if (!empty($validated['convalidation_type'])) {
+                $career = Career::findOrFail($validated['career_id']);
+                $startLevel = $this->calculateConvalidationStartLevel(
+                    $validated['convalidation_type'],
+                    $career
+                );
+
+                // Registrar convalidación
+                StudentConvalidation::create([
+                    'student_id' => $validated['student_id'],
+                    'career_id' => $validated['career_id'],
+                    'type' => $validated['convalidation_type'],
+                    'start_level' => $startLevel,
+                ]);
+            }
+
+            // Asignar materias DESDE el nivel de inicio
+            $subjects = Subject::where('career_id', $validated['career_id'])
+                ->where('level', '>=', $startLevel)
+                ->orderBy('level')
+                ->get();
+
+            foreach ($subjects as $s) {
+                StudentSubject::create([
+                    'student_id' => $validated['student_id'],
+                    'subject_id' => $s->id,
+                    'status' => $s->level == $startLevel ? 'Registrado' : 'Falta'
+                ]);
+            }
+
             DB::commit();
 
             return response()->json([
                 'message' => 'Carrera asignada correctamente.',
-                'data' => $studentCareer
+                'data' => $studentCareer,
+                'convalidation' => !empty($validated['convalidation_type']) ? [
+                    'type' => $validated['convalidation_type'],
+                    'start_level' => $startLevel,
+                ] : null,
             ], 201);
 
         } catch (\Exception $e) {
