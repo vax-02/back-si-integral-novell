@@ -159,7 +159,7 @@ class CareerController extends Controller
         switch($number){
             case 1: return 'Primer';
             case 2: return 'Segundo';
-            case 3: return 'Tercero';
+            case 3: return 'Tercer';
             case 4: return 'Cuarto';
             case 5: return 'Quinto';
             case 6: return 'Sexto';

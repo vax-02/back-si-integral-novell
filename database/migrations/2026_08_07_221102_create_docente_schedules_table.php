@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('day', 20); // Lunes, Martes, ...
             $table->time('entry_time');
 
-            $table->boolean('is_active')->default(true)->after('departure_time');
+            $table->boolean('is_active')->default(true);
 
             $table->timestamps();
 

@@ -26,8 +26,8 @@ return new class extends Migration
             $table->tinyInteger('carnet')->default(0);
             $table->tinyInteger('certificate')->default(0);
 
-            $table->string('biometric_pin', 20)->nullable()->unique()->after('certificate');
-            $table->unsignedInteger('tolerance_minutes')->default(5)->after('biometric_pin');
+            $table->string('biometric_pin', 20)->nullable()->unique();
+            $table->unsignedInteger('tolerance_minutes')->default(5);
             $table->timestamps();
         });
     }
