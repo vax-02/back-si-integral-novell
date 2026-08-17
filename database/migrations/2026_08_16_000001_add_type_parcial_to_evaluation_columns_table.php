@@ -1,0 +1,23 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('evaluation_columns', function (Blueprint $table) {
+            $table->enum('type', ['teorica', 'practica'])->default('teorica')->after('name');
+            $table->integer('parcial')->default(1)->after('type');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('evaluation_columns', function (Blueprint $table) {
+            $table->dropColumn(['type', 'parcial']);
+        });
+    }
+};

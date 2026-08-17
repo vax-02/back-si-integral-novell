@@ -12,6 +12,9 @@ class Subject extends Model
         'level',
         'career_id',
         'subject_id',
+        'theory_weight',
+        'practice_weight',
+        'num_parciales',
     ];
 
     public function qualifications()

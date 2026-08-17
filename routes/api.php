@@ -113,6 +113,8 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::get('grades/years', [GradeController::class, 'years']);
     Route::get('grades/export', [GradeController::class, 'exportCalificaciones']);
     Route::get('grades/parallel/{parallel}/general', [GradeController::class, 'generalByParallel']);
+    Route::get('grades/parcial-report', [GradeController::class, 'parcialReport']);
+    Route::get('grades/parcial-report/export', [GradeController::class, 'exportParcialReport']);
 
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
 });
@@ -141,6 +143,10 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:3'])->group(function () 
     Route::post('grades/columns', [GradeController::class, 'saveColumn']);
     Route::put('grades/columns/{id}', [GradeController::class, 'updateColumn']);
     Route::delete('grades/columns/{id}', [GradeController::class, 'deleteColumn']);
+    Route::post('grades/save-recovery', [GradeController::class, 'saveRecoveryGrade']);
+    Route::put('grades/subject-config', [GradeController::class, 'updateSubjectConfig']);
+    Route::get('grades/parcial-report', [GradeController::class, 'parcialReport']);
+    Route::get('grades/parcial-report/export', [GradeController::class, 'exportParcialReport']);
 
     Route::get('materials', [MaterialController::class, 'index']);
     Route::post('materials', [MaterialController::class, 'store']);

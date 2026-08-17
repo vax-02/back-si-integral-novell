@@ -13,6 +13,7 @@ class Qualification extends Model
         'subject_id',
         'qualification',
         'final_grade',
+        'recovery_grade',
         'published',
     ];
 

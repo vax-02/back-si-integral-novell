@@ -29,7 +29,6 @@ class StudentGradeController extends Controller
                 return response()->json(['message' => 'Estudiante no encontrado'], 404);
             }
 
-            // Obtener los paralelos del estudiante
             $studentParallels = StudentParallel::where('student_id', $student->id)
                 ->where('status', true)
                 ->get();
@@ -40,7 +39,6 @@ class StudentGradeController extends Controller
 
             $sigla = $request->input('sigla');
 
-            // Construir query para qualifications publicadas
             $query = Qualification::where('student_id', $student->id)
                 ->where('published', true)
                 ->with(['subject', 'parallel.course', 'details.evaluationColumn']);
@@ -53,10 +51,11 @@ class StudentGradeController extends Controller
             
             $qualifications = $query->get();
 
-            
             $gradesData = $qualifications->map(function ($qual) {
+                $subject = $qual->subject;
                 $columns = EvaluationColumn::where('subject_id', $qual->subject_id)
                 ->where('parallel_id', $qual->parallel_id)
+                ->orderBy('parcial')
                 ->orderBy('order')
                 ->get();
                 
@@ -69,13 +68,23 @@ class StudentGradeController extends Controller
                         'weight' => $col->weight,
                         'weight_percent' => $col->weight * 100,
                         'grade' => $detail ? $detail->grade : null,
+                        'type' => $col->type,
+                        'parcial' => $col->parcial,
                     ];
                 });
+
+                $theoreticalAvg = $this->calculateTypeAverage($columns, $details, 'teorica');
+                $practicalAvg = $this->calculateTypeAverage($columns, $details, 'practica');
                         
                 $docenteParallel = Docente::whereHas('subjects', function ($q) use ($qual) {
                     $q->where('subjects.id', $qual->subject_id)
                      ->where('parallel_id', $qual->parallel_id);
                 })->with('user')->first();
+
+                $effectiveGrade = $qual->final_grade;
+                if ($qual->recovery_grade !== null && $qual->final_grade !== null && $qual->final_grade < 61) {
+                    $effectiveGrade = $qual->recovery_grade;
+                }
 
                 return [
                     'subject_id' => $qual->subject_id,
@@ -90,7 +99,14 @@ class StudentGradeController extends Controller
                         ($docenteParallel->user->second_lastname ?? '')
                     ) : '—',
                     'evaluations' => $evaluations,
+                    'theoretical_average' => $theoreticalAvg !== null ? round($theoreticalAvg, 2) : null,
+                    'practical_average' => $practicalAvg !== null ? round($practicalAvg, 2) : null,
                     'final_grade' => $qual->final_grade,
+                    'recovery_grade' => $qual->recovery_grade,
+                    'effective_grade' => $effectiveGrade !== null ? round($effectiveGrade, 2) : null,
+                    'theory_weight' => $subject?->theory_weight,
+                    'practice_weight' => $subject?->practice_weight,
+                    'num_parciales' => $subject?->num_parciales,
                 ];
             });
 
@@ -102,5 +118,27 @@ class StudentGradeController extends Controller
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Calcular promedio ponderado de un tipo específico
+     */
+    private function calculateTypeAverage($columns, $details, string $type): ?float
+    {
+        $sum = 0;
+        $weightSum = 0;
+
+        foreach ($columns as $col) {
+            if ($col->type !== $type) continue;
+
+            $detail = $details->get($col->id) ?? $details->where('evaluation_column_id', $col->id)->first();
+
+            if ($detail && $detail->grade !== null) {
+                $sum += $detail->grade * $col->weight;
+                $weightSum += $col->weight;
+            }
+        }
+
+        return $weightSum > 0 ? $sum / $weightSum : null;
     }
 }

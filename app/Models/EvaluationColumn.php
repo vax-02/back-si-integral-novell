@@ -11,6 +11,8 @@ class EvaluationColumn extends Model
         'parallel_id',
         'course_id',
         'name',
+        'type',
+        'parcial',
         'weight',
         'order',
     ];

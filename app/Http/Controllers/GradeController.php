@@ -26,7 +26,6 @@ class GradeController extends Controller
             $parallel = Parallel::with('course')->findOrFail($parallelId);
             $subjectId = $request->input('subject_id');
 
-            // Obtener estudiantes del paralelo a través de student_parallels
             $studentIds = StudentParallel::where('parallel_id', $parallelId)
                 ->where('status', true)
                 ->pluck('student_id');
@@ -35,13 +34,11 @@ class GradeController extends Controller
                 ->with('user')
                 ->get();
 
-            // Obtener columnas de evaluación
             $columns = EvaluationColumn::where('subject_id', $subjectId)
                 ->where('parallel_id', $parallelId)
                 ->orderBy('order')
                 ->get();
 
-            // Obtener qualifications del paralelo (un registro por estudiante+materia+curso+paralelo)
             $qualifications = Qualification::where('subject_id', $subjectId)
                 ->where('course_id', $parallel->course_id)
                 ->where('parallel_id', $parallelId)
@@ -49,10 +46,11 @@ class GradeController extends Controller
                 ->get()
                 ->keyBy('student_id');
 
-            $studentsData = $students->map(function ($student) use ($columns, $qualifications, $parallel, $subjectId) {
+            $subject = Subject::find($subjectId);
+
+            $studentsData = $students->map(function ($student) use ($columns, $qualifications, $parallel, $subjectId, $subject) {
                 $qual = $qualifications->get($student->id);
                 $grades = [];
-                $finalGrade = $qual ? $qual->final_grade : null;
 
                 foreach ($columns as $col) {
                     $detail = $qual?->details->firstWhere('evaluation_column_id', $col->id);
@@ -62,16 +60,28 @@ class GradeController extends Controller
                     ];
                 }
 
+                $theoreticalAvg = null;
+                $practicalAvg = null;
+                $finalGrade = null;
+
+                if ($qual) {
+                    $theoreticalAvg = $this->calculateTypeAverage($columns, $qual->details, 'teorica');
+                    $practicalAvg = $this->calculateTypeAverage($columns, $qual->details, 'practica');
+                    $finalGrade = $this->calculateFinalGrade($theoreticalAvg, $practicalAvg, $subject);
+                }
+
                 return [
                     'id' => $student->id,
                     'name' => $student->user->name . ' ' . $student->user->first_lastname,
                     'ci' => $student->user->ci,
                     'grades' => $grades,
+                    'theoretical_average' => $theoreticalAvg !== null ? round($theoreticalAvg, 2) : null,
+                    'practical_average' => $practicalAvg !== null ? round($practicalAvg, 2) : null,
                     'final_grade' => $finalGrade !== null ? round($finalGrade, 2) : null,
+                    'recovery_grade' => $qual?->recovery_grade,
                 ];
             });
 
-            // Verificar si todas las qualifications están publicadas
             $totalQualifications = $qualifications->count();
             $publishedQualifications = $qualifications->filter(fn($q) => $q->published)->count();
             $allPublished = $totalQualifications > 0 && $totalQualifications === $publishedQualifications;
@@ -81,6 +91,11 @@ class GradeController extends Controller
                 'columns' => $columns,
                 'parallel' => $parallel->load('course.career'),
                 'published' => $allPublished,
+                'subject' => $subject ? [
+                    'theory_weight' => $subject->theory_weight,
+                    'practice_weight' => $subject->practice_weight,
+                    'num_parciales' => $subject->num_parciales,
+                ] : null,
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -104,7 +119,6 @@ class GradeController extends Controller
         try {
             DB::beginTransaction();
 
-            // Buscar o crear el registro principal de qualification
             $qualification = Qualification::firstOrCreate(
                 [
                     'student_id' => $request->student_id,
@@ -118,7 +132,6 @@ class GradeController extends Controller
                 ]
             );
 
-            // Crear o actualizar el detalle (qualification_detail)
             QualificationDetail::updateOrCreate(
                 [
                     'qualification_id' => $qualification->id,
@@ -129,7 +142,6 @@ class GradeController extends Controller
                 ]
             );
 
-            // Recalcular nota final
             $allColumns = EvaluationColumn::where('subject_id', $request->subject_id)
                 ->where('parallel_id', $request->parallel_id)
                 ->get();
@@ -138,16 +150,14 @@ class GradeController extends Controller
                 ->get()
                 ->keyBy('evaluation_column_id');
 
-            $finalGrade = 0;
-            foreach ($allColumns as $col) {
-                $detail = $allDetails->get($col->id);
-                if ($detail && $detail->grade !== null) {
-                    $finalGrade += $detail->grade * $col->weight;
-                }
-            }
+            $subject = Subject::find($request->subject_id);
+
+            $theoreticalAvg = $this->calculateTypeAverage($allColumns, $allDetails->values(), 'teorica');
+            $practicalAvg = $this->calculateTypeAverage($allColumns, $allDetails->values(), 'practica');
+            $finalGrade = $this->calculateFinalGrade($theoreticalAvg, $practicalAvg, $subject);
 
             $qualification->update([
-                'final_grade' => round($finalGrade, 2),
+                'final_grade' => $finalGrade !== null ? round($finalGrade, 2) : null,
             ]);
 
             DB::commit();
@@ -155,7 +165,9 @@ class GradeController extends Controller
             return response()->json([
                 'message' => 'Calificación guardada.',
                 'qualification_id' => $qualification->id,
-                'final_grade' => round($finalGrade, 2),
+                'theoretical_average' => $theoreticalAvg !== null ? round($theoreticalAvg, 2) : null,
+                'practical_average' => $practicalAvg !== null ? round($practicalAvg, 2) : null,
+                'final_grade' => $finalGrade !== null ? round($finalGrade, 2) : null,
             ]);
         } catch (Exception $e) {
             DB::rollBack();
@@ -173,6 +185,8 @@ class GradeController extends Controller
             'parallel_id' => 'required|integer|exists:parallels,id',
             'course_id' => 'required|integer|exists:courses,id',
             'name' => 'required|string|max:255',
+            'type' => 'required|in:teorica,practica',
+            'parcial' => 'required|integer|min:1|max:4',
             'weight' => 'required|numeric|min:0|max:1',
             'order' => 'integer|min:0',
         ]);
@@ -183,6 +197,8 @@ class GradeController extends Controller
                 'parallel_id' => $request->parallel_id,
                 'course_id' => $request->course_id,
                 'name' => $request->name,
+                'type' => $request->type,
+                'parcial' => $request->parcial,
                 'weight' => $request->weight,
                 'order' => $request->order ?? 0,
             ]);
@@ -203,7 +219,6 @@ class GradeController extends Controller
     {
         try {
             $column = EvaluationColumn::findOrFail($id);
-            // Eliminar calificaciones asociadas
             QualificationDetail::where('evaluation_column_id', $id)->delete();
             $column->delete();
 
@@ -262,7 +277,7 @@ class GradeController extends Controller
     }
 
     /**
-     * Actualizar columna (nombre, peso, orden)
+     * Actualizar columna (nombre, peso, orden, tipo, parcial)
      */
     public function updateColumn(Request $request, $id)
     {
@@ -270,6 +285,8 @@ class GradeController extends Controller
             'name' => 'required|string|max:255',
             'weight' => 'required|numeric|min:0|max:1',
             'order' => 'nullable|integer|min:0',
+            'type' => 'sometimes|in:teorica,practica',
+            'parcial' => 'sometimes|integer|min:1|max:4',
         ]);
 
         try {
@@ -281,11 +298,243 @@ class GradeController extends Controller
             if ($request->has('order')) {
                 $data['order'] = $request->order;
             }
+            if ($request->has('type')) {
+                $data['type'] = $request->type;
+            }
+            if ($request->has('parcial')) {
+                $data['parcial'] = $request->parcial;
+            }
             $column->update($data);
 
             return response()->json([
                 'message' => 'Columna actualizada.',
                 'column' => $column,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Guardar nota de recuperación
+     */
+    public function saveRecoveryGrade(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|integer|exists:students,id',
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'course_id' => 'required|integer|exists:courses,id',
+            'parallel_id' => 'required|integer|exists:parallels,id',
+            'recovery_grade' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        try {
+            $qualification = Qualification::where('student_id', $request->student_id)
+                ->where('subject_id', $request->subject_id)
+                ->where('course_id', $request->course_id)
+                ->where('parallel_id', $request->parallel_id)
+                ->first();
+
+            if (!$qualification) {
+                return response()->json(['error' => 'No existe calificación para este estudiante.'], 404);
+            }
+
+            $qualification->update([
+                'recovery_grade' => $request->recovery_grade,
+            ]);
+
+            return response()->json([
+                'message' => 'Nota de recuperación guardada.',
+                'recovery_grade' => $request->recovery_grade,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Actualizar configuración de la materia (pesos teoría/práctica, número de parciales)
+     */
+    public function updateSubjectConfig(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'parallel_id' => 'required|integer|exists:parallels,id',
+            'theory_weight' => 'required|numeric|min:0|max:1',
+            'practice_weight' => 'required|numeric|min:0|max:1',
+            'num_parciales' => 'required|integer|min:1|max:4',
+        ]);
+
+        try {
+            $subject = Subject::findOrFail($request->subject_id);
+            $subject->update([
+                'theory_weight' => $request->theory_weight,
+                'practice_weight' => $request->practice_weight,
+                'num_parciales' => $request->num_parciales,
+            ]);
+
+            return response()->json([
+                'message' => 'Configuración de materia actualizada.',
+                'subject' => [
+                    'theory_weight' => $subject->theory_weight,
+                    'practice_weight' => $subject->practice_weight,
+                    'num_parciales' => $subject->num_parciales,
+                ],
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Informe de parciales por materia
+     */
+    public function parcialReport(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'parallel_id' => 'required|integer|exists:parallels,id',
+        ]);
+
+        try {
+            $parallel = Parallel::with('course.career')->findOrFail($request->parallel_id);
+            $subject = Subject::findOrFail($request->subject_id);
+
+            $columns = EvaluationColumn::where('subject_id', $subject->id)
+                ->where('parallel_id', $parallel->id)
+                ->orderBy('parcial')
+                ->orderBy('order')
+                ->get();
+
+            $columnsByParcial = $columns->groupBy('parcial');
+
+            $studentIds = StudentParallel::where('parallel_id', $parallel->id)
+                ->where('status', true)
+                ->pluck('student_id');
+
+            $students = Student::whereIn('id', $studentIds)
+                ->with('user')
+                ->get();
+
+            $qualifications = Qualification::where('subject_id', $subject->id)
+                ->where('course_id', $parallel->course_id)
+                ->where('parallel_id', $parallel->id)
+                ->with('details')
+                ->get()
+                ->keyBy('student_id');
+
+            $reportData = $students->map(function ($student) use ($columnsByParcial, $qualifications, $subject) {
+                $qual = $qualifications->get($student->id);
+                $parciales = [];
+
+                foreach ($columnsByParcial as $parcialNum => $parcialCols) {
+                    $theoSum = 0;
+                    $theoWeightSum = 0;
+                    $praSum = 0;
+                    $praWeightSum = 0;
+
+                    foreach ($parcialCols as $col) {
+                        $detail = $qual?->details->firstWhere('evaluation_column_id', $col->id);
+                        $grade = $detail?->grade;
+
+                        if ($grade !== null) {
+                            if ($col->type === 'teorica') {
+                                $theoSum += $grade * $col->weight;
+                                $theoWeightSum += $col->weight;
+                            } else {
+                                $praSum += $grade * $col->weight;
+                                $praWeightSum += $col->weight;
+                            }
+                        }
+                    }
+
+                    $theoAvg = $theoWeightSum > 0 ? round($theoSum / $theoWeightSum, 2) : null;
+                    $praAvg = $praWeightSum > 0 ? round($praSum / $praWeightSum, 2) : null;
+
+                    $parcialFinal = null;
+                    if ($theoAvg !== null && $praAvg !== null) {
+                        $parcialFinal = round(
+                            ($theoAvg * $subject->theory_weight) + ($praAvg * $subject->practice_weight),
+                            2
+                        );
+                    } elseif ($theoAvg !== null) {
+                        $parcialFinal = $theoAvg;
+                    } elseif ($praAvg !== null) {
+                        $parcialFinal = $praAvg;
+                    }
+
+                    $parciales[$parcialNum] = [
+                        'theoretical_average' => $theoAvg,
+                        'practical_average' => $praAvg,
+                        'final_grade' => $parcialFinal,
+                    ];
+                }
+
+                $promedioFinal = null;
+                $validParciales = array_filter($parciales, fn($p) => $p['final_grade'] !== null);
+                if (count($validParciales) > 0) {
+                    $sum = array_sum(array_map(fn($p) => $p['final_grade'], $validParciales));
+                    $promedioFinal = round($sum / count($validParciales), 2);
+                }
+
+                $observation = null;
+                $effectiveGrade = $promedioFinal;
+                if ($qual?->recovery_grade !== null && $promedioFinal !== null && $promedioFinal < 61) {
+                    $effectiveGrade = $qual->recovery_grade;
+                }
+                if ($effectiveGrade !== null) {
+                    $observation = $effectiveGrade >= 61 ? 'Aprobado' : 'Reprobado';
+                } else {
+                    $observation = 'Abandono';
+                }
+
+                return [
+                    'id' => $student->id,
+                    'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                    'ci' => $student->user->ci ?? '',
+                    'parciales' => $parciales,
+                    'promedio_final' => $promedioFinal,
+                    'recovery_grade' => $qual?->recovery_grade,
+                    'observation' => $observation,
+                ];
+            });
+
+            $totalStudents = $reportData->count();
+            $aprobados = $reportData->where('observation', 'Aprobado')->count();
+            $reprobados = $reportData->where('observation', 'Reprobado')->count();
+            $promedioGeneral = $reportData->where('promedio_final', '!==', null)
+                ->avg('promedio_final');
+
+            return response()->json([
+                'subject' => [
+                    'id' => $subject->id,
+                    'name' => $subject->name,
+                    'sigla' => $subject->sigla,
+                    'theory_weight' => $subject->theory_weight,
+                    'practice_weight' => $subject->practice_weight,
+                    'num_parciales' => $subject->num_parciales,
+                ],
+                'parallel' => [
+                    'id' => $parallel->id,
+                    'paralelo' => $parallel->paralelo,
+                    'turno' => $parallel->turno,
+                ],
+                'career' => $parallel->course?->career ? $parallel->course->career->only(['id', 'name', 'type']) : null,
+                'columns_by_parcial' => $columnsByParcial->map(function ($cols) {
+                    return $cols->map(fn($c) => [
+                        'id' => $c->id,
+                        'name' => $c->name,
+                        'type' => $c->type,
+                        'weight' => $c->weight,
+                    ])->values();
+                }),
+                'students' => $reportData,
+                'summary' => [
+                    'total_estudiantes' => $totalStudents,
+                    'aprobados' => $aprobados,
+                    'reprobados' => $reprobados,
+                    'promedio_general' => round($promedioGeneral, 2),
+                ],
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -302,13 +551,11 @@ class GradeController extends Controller
             $course = $parallel->course;
             $year = $request->input('year');
 
-            // Materias del curso (misma carrera y nivel del curso)
             $subjects = Subject::where('career_id', $course->career_id)
                 ->where('level', $course->level)
                 ->orderBy('name')
                 ->get(['id', 'name', 'sigla']);
 
-            // Notas finales (una por estudiante + materia + curso + paralelo)
             $qualificationsQuery = Qualification::where('course_id', $course->id)
                 ->where('parallel_id', $parallelId)
                 ->whereIn('subject_id', $subjects->pluck('id'));
@@ -320,8 +567,6 @@ class GradeController extends Controller
             $qualifications = $qualificationsQuery->get()
                 ->keyBy(fn ($q) => $q->student_id . '_' . $q->subject_id);
 
-            // Estudiantes: si se filtra por gestión, son quienes tienen notas en ese año;
-            // si no, los activos del paralelo (comportamiento actual)
             if ($year) {
                 $studentIds = $qualifications->pluck('student_id')->unique();
             } else {
@@ -340,10 +585,18 @@ class GradeController extends Controller
                 $count = 0;
 
                 foreach ($subjects as $subject) {
-                    $final = $qualifications->get($student->id . '_' . $subject->id)?->final_grade;
-                    $grades[$subject->id] = $final !== null ? round($final, 2) : null;
-                    if ($final !== null) {
-                        $sum += $final;
+                    $qual = $qualifications->get($student->id . '_' . $subject->id);
+                    $final = $qual?->final_grade;
+                    $recoveryGrade = $qual?->recovery_grade;
+
+                    $displayGrade = $final;
+                    if ($recoveryGrade !== null && $final !== null && $final < 61) {
+                        $displayGrade = $recoveryGrade;
+                    }
+
+                    $grades[$subject->id] = $displayGrade !== null ? round($displayGrade, 2) : null;
+                    if ($displayGrade !== null) {
+                        $sum += $displayGrade;
                         $count++;
                     }
                 }
@@ -418,7 +671,6 @@ class GradeController extends Controller
 
     /**
      * Exportar calificaciones de un paralelo y gestión a Excel.
-     * Hoja "Centralizador" con todas las materias del curso + una pestaña por materia.
      */
     public function exportCalificaciones(Request $request)
     {
@@ -446,5 +698,88 @@ class GradeController extends Controller
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Exportar informe de parciales a Excel
+     */
+    public function exportParcialReport(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'parallel_id' => 'required|integer|exists:parallels,id',
+        ]);
+
+        try {
+            $service = new \App\Services\ParcialReportExportService();
+            $path = $service->generate((int) $request->subject_id, (int) $request->parallel_id);
+
+            $subject = Subject::find($request->subject_id);
+            $parallel = Parallel::with('course')->find($request->parallel_id);
+            $filename = 'Informe_Parciales_' . ($subject?->sigla ?? 'materia')
+                . '_' . ($parallel?->paralelo ?? '')
+                . '.xlsx';
+            $filename = str_replace(' ', '_', $filename);
+
+            return response()->download($path, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store, no-cache, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+            ])->deleteFileAfterSend(true);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Calcular promedio ponderado de un tipo específico (teorica/practica)
+     */
+    private function calculateTypeAverage($columns, $details, string $type): ?float
+    {
+        $sum = 0;
+        $weightSum = 0;
+
+        foreach ($columns as $col) {
+            if ($col->type !== $type) continue;
+
+            $detail = $details instanceof \Illuminate\Support\Collection
+                ? $details->firstWhere('evaluation_column_id', $col->id)
+                : collect($details)->firstWhere('evaluation_column_id', $col->id);
+
+            if ($detail && $detail->grade !== null) {
+                $sum += $detail->grade * $col->weight;
+                $weightSum += $col->weight;
+            }
+        }
+
+        return $weightSum > 0 ? $sum / $weightSum : null;
+    }
+
+    /**
+     * Calcular nota final con ponderación teoría/práctica
+     */
+    private function calculateFinalGrade(?float $theoreticalAvg, ?float $practicalAvg, ?Subject $subject): ?float
+    {
+        if (!$subject) {
+            if ($theoreticalAvg !== null && $practicalAvg !== null) {
+                return ($theoreticalAvg + $practicalAvg) / 2;
+            }
+            return $theoreticalAvg ?? $practicalAvg;
+        }
+
+        if ($theoreticalAvg !== null && $practicalAvg !== null) {
+            return ($theoreticalAvg * $subject->theory_weight) + ($practicalAvg * $subject->practice_weight);
+        }
+
+        if ($theoreticalAvg !== null) {
+            return $theoreticalAvg;
+        }
+
+        if ($practicalAvg !== null) {
+            return $practicalAvg;
+        }
+
+        return null;
     }
 }
