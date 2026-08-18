@@ -19,15 +19,15 @@ class GradeExportService
     private const NOTA_MINIMA = 61;
 
     private const SHEET_CENTRALIZADOR = [
-        'Mañana' => 'Centralizador 3er año Maña',
-        'Tarde' => 'Centralizador 3er año Tarde',
-        'Noche' => 'Centralizador 3er año Noche',
+        'Mañana' => 'Centralizador',
+        'Tarde' => 'Centralizador',
+        'Noche' => 'Centralizador',
     ];
 
     private const SHEET_BASE_MATERIA = [
-        'Mañana' => 'COA-301',
-        'Tarde' => 'COA-301 T',
-        'Noche' => 'COA-301 N',
+        'Mañana' => 'materia',
+        'Tarde' => 'materia',
+        'Noche' => 'materia',
     ];
 
     private const CENTRAL_FIRST_SUBJECT_COL = 7;   // G
