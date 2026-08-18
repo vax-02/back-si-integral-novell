@@ -330,6 +330,53 @@ class GradeExportService
         $career = $course->career;
         $totalCols = self::CENTRAL_LAST_SUBJECT_COL - self::CENTRAL_FIRST_SUBJECT_COL + 1;
 
+        // Colors from template
+        $tealBg = '31869B';
+        $lightBlueBg = 'DBEFF4';
+        $whiteFont = 'FFFFFF';
+        $lightBlueFont = 'B6DEE8';
+        $darkTealFont = '215967';
+        $blackFont = '000000';
+
+        // Apply header row 7 styles (teal background, white/light blue font)
+        $headerRow7 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'T', 'U'];
+        foreach ($headerRow7 as $col) {
+            $style = $sheet->getStyle($col . '7');
+            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
+            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Calibri')->setSize(11);
+            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        }
+
+        // Apply row 8 styles (teal background, light blue font for subject names)
+        for ($c = self::CENTRAL_FIRST_SUBJECT_COL; $c <= self::CENTRAL_LAST_SUBJECT_COL; $c++) {
+            $col = $this->colLetter($c);
+            $style = $sheet->getStyle($col . '8');
+            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
+            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($lightBlueFont))->setBold(true)->setName('Calibri')->setSize(10);
+            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        }
+
+        // Apply rows 9-12 styles (light blue background, dark teal font)
+        $labelRows = ['9', '10', '11', '12'];
+        foreach ($labelRows as $r) {
+            $style = $sheet->getStyle('C' . $r);
+            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
+            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Calibri')->setSize(11);
+
+            $style = $sheet->getStyle('E' . $r);
+            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
+            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($darkTealFont))->setName('Calibri')->setSize(11);
+        }
+
+        // Apply row 13 styles (light blue background, dark teal font for column headers)
+        $dataHeaderCols = ['C', 'D', 'F'];
+        foreach ($dataHeaderCols as $col) {
+            $style = $sheet->getStyle($col . '13');
+            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
+            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($darkTealFont))->setBold(true)->setName('Calibri')->setSize(11);
+            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        }
+
         // Fill header info
         $sheet->setCellValue('E7', $this->year);
         $sheet->setCellValue('U5', mb_strtoupper($this->parallel->turno));
@@ -379,7 +426,6 @@ class GradeExportService
 
         // Fill student data rows
         $row = self::CENTRAL_FIRST_DATA_ROW;
-        $blackColor = '000000'; // Negro
 
         foreach ($this->students as $index => $student) {
             $sheet->setCellValue('C' . $row, $index + 1);
@@ -394,12 +440,18 @@ class GradeExportService
                 $col = $this->colLetter(self::CENTRAL_FIRST_SUBJECT_COL + $i);
                 $final = $this->finalGrade($student->id, $subject->id);
                 $sheet->setCellValue($col . $row, $final ?? '');
-                $sheet->getStyle($col . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackColor))->setBold(true);
+                $sheet->getStyle($col . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont))->setName('Arial')->setSize(11);
+                $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             }
 
             // Estado and Observaciones (leave blank)
             $sheet->setCellValue('T' . $row, $this->observacion($student->id));
             $sheet->setCellValue('U' . $row, '');
+
+            // Style for row number and name
+            $sheet->getStyle('C' . $row)->getFont()->setName('Arial')->setSize(11);
+            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('D' . $row)->getFont()->setName('Arial Narrow')->setSize(11);
 
             $row++;
         }
@@ -410,6 +462,20 @@ class GradeExportService
         $course = $this->parallel->course;
         $career = $course->career;
 
+        // Colors from template
+        $greenBg = '76923C';
+        $whiteFont = 'FFFFFF';
+        $blackFont = '000000';
+
+        // Apply row 12 header styles (green background, white font)
+        $headerCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J'];
+        foreach ($headerCols as $col) {
+            $style = $sheet->getStyle($col . '12');
+            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($greenBg);
+            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Arial')->setSize(10);
+            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        }
+
         // Fill header info
         $sheet->setCellValue('E5', mb_strtoupper($career->name));
         $sheet->setCellValue('E6', $this->getRegimen());
@@ -419,6 +485,17 @@ class GradeExportService
         $sheet->setCellValue('J9', mb_strtoupper($this->parallel->turno));
         $sheet->setCellValue('E10', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
         $sheet->setCellValue('J10', $this->year);
+
+        // Style header info rows (bold labels)
+        $labelCells = ['D5', 'D6', 'D7', 'D8', 'I8', 'D9', 'I9', 'D10', 'I10'];
+        foreach ($labelCells as $cell) {
+            $sheet->getStyle($cell)->getFont()->setBold(true)->setName('Calibri')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        }
+        $valueCells = ['E5', 'E6', 'E7', 'E8', 'J8', 'E9', 'J9', 'E10', 'J10'];
+        foreach ($valueCells as $cell) {
+            $sheet->getStyle($cell)->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle($cell)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        }
 
         // Clear existing data rows
         for ($r = self::DETAIL_FIRST_DATA_ROW; $r <= self::DETAIL_LAST_DATA_ROW; $r++) {
@@ -447,7 +524,6 @@ class GradeExportService
 
         // Fill student data
         $row = self::DETAIL_FIRST_DATA_ROW;
-        $blueColor = '000000'; // Negro
         $theoryWeight = $subject->theory_weight ?? 0.3;
         $practiceWeight = $subject->practice_weight ?? 0.7;
 
@@ -459,29 +535,38 @@ class GradeExportService
             $theoAvg = $this->theoreticalAverage($student->id, $subject->id);
             $theoWeighted = $theoAvg !== null ? round($theoAvg * $theoryWeight, 2) : null;
             $sheet->setCellValue('F' . $row, $theoWeighted !== null ? $theoWeighted : '');
-            $sheet->getStyle('F' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Prom. Eval. Práctica = promedio práctico * practice_weight
             $pracAvg = $this->practicalAverage($student->id, $subject->id);
             $pracWeighted = $pracAvg !== null ? round($pracAvg * $practiceWeight, 2) : null;
             $sheet->setCellValue('G' . $row, $pracWeighted !== null ? $pracWeighted : '');
-            $sheet->getStyle('G' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Calificación Final = PromTeoricaPonderada + PromPracticaPonderada
             $final = ($theoWeighted !== null ? $theoWeighted : 0) + ($pracWeighted !== null ? $pracWeighted : 0);
             $final = $final > 0 ? $final : null;
             $sheet->setCellValue('H' . $row, $final !== null ? $final : '');
-            $sheet->getStyle('H' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Prueba de Recuperación
             $q = $this->qualifications->get($student->id . '_' . $subject->id);
             $recovery = $q?->recovery_grade;
             $sheet->setCellValue('I' . $row, $recovery !== null ? $recovery : '');
-            $sheet->getStyle('I' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Estado
             $sheet->setCellValue('J' . $row, $this->observacionSubject($final));
-            $sheet->getStyle('J' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
+
+            // Apply data row styles (black font, no bold, Arial)
+            $dataCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J'];
+            foreach ($dataCols as $col) {
+                $sheet->getStyle($col . $row)->getFont()->setName('Arial')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont))->setBold(false);
+            }
+            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('D' . $row)->getFont()->setName('Arial Narrow')->setSize(11);
+            $sheet->getStyle('F' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('H' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('I' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('J' . $row)->getFont()->setName('Agency FB')->setSize(11);
+            $sheet->getStyle('J' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_JUSTIFY);
 
             $row++;
         }
