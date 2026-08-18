@@ -444,7 +444,7 @@ class GradeExportService
 
         // Fill student data
         $row = self::DETAIL_FIRST_DATA_ROW;
-        $blueColor = '0000CC'; // Azul fuerte para mejor visibilidad
+        $blueColor = '000000'; // Negro
         $theoryWeight = $subject->theory_weight ?? 0.3;
         $practiceWeight = $subject->practice_weight ?? 0.7;
 
