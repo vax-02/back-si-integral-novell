@@ -456,29 +456,29 @@ class GradeExportService
             $theoAvg = $this->theoreticalAverage($student->id, $subject->id);
             $theoWeighted = $theoAvg !== null ? round($theoAvg * $theoryWeight, 2) : null;
             $sheet->setCellValue('F' . $row, $theoWeighted !== null ? $theoWeighted : '');
-            $sheet->getStyle('F' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
+            $sheet->getStyle('F' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Prom. Eval. Práctica = promedio práctico * practice_weight
             $pracAvg = $this->practicalAverage($student->id, $subject->id);
             $pracWeighted = $pracAvg !== null ? round($pracAvg * $practiceWeight, 2) : null;
             $sheet->setCellValue('G' . $row, $pracWeighted !== null ? $pracWeighted : '');
-            $sheet->getStyle('G' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
+            $sheet->getStyle('G' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Calificación Final = PromTeoricaPonderada + PromPracticaPonderada
             $final = ($theoWeighted !== null ? $theoWeighted : 0) + ($pracWeighted !== null ? $pracWeighted : 0);
             $final = $final > 0 ? $final : null;
             $sheet->setCellValue('H' . $row, $final !== null ? $final : '');
-            $sheet->getStyle('H' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
+            $sheet->getStyle('H' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Prueba de Recuperación
             $q = $this->qualifications->get($student->id . '_' . $subject->id);
             $recovery = $q?->recovery_grade;
             $sheet->setCellValue('I' . $row, $recovery !== null ? $recovery : '');
-            $sheet->getStyle('I' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
+            $sheet->getStyle('I' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             // Estado
             $sheet->setCellValue('J' . $row, $this->observacionSubject($final));
-            $sheet->getStyle('J' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
+            $sheet->getStyle('J' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor))->setBold(true);
 
             $row++;
         }
