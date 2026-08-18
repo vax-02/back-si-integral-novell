@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\DB;
 class GradeExportService
 {
     private const NOTA_MINIMA = 61;
+    private const WEIGHT_THEORY = 0.3;
+    private const WEIGHT_PRACTICE = 0.7;
 
     // Centralizador: subject columns G(7)-M(13), Estado=T(20), Observaciones=U(21)
     private const CENTRAL_FIRST_SUBJECT_COL = 7;   // G
@@ -215,8 +217,8 @@ class GradeExportService
 
     /**
      * Calculate theoretical average for a student in a subject.
-     * Sums all column grades where column.name contains 'teor' (case-insensitive)
-     * and divides by the number of such columns.
+     * Uses columns named 'examen' (theoretical evaluations).
+     * Returns the average of those columns.
      */
     private function theoreticalAverage(int $studentId, int $subjectId): ?float
     {
@@ -230,7 +232,8 @@ class GradeExportService
             return null;
         }
 
-        $theoreticalColumns = $columns->filter(fn ($col) => str_contains(strtolower($col->name), 'teor'));
+        // Theoretical columns: 'examen'
+        $theoreticalColumns = $columns->filter(fn ($col) => in_array(strtolower($col->name), ['examen']));
         if ($theoreticalColumns->isEmpty()) {
             return null;
         }
@@ -244,13 +247,13 @@ class GradeExportService
             }
         }
 
-        return $count > 0 ? round($sum, 2) : null;
+        return $count > 0 ? round($sum / $count, 2) : null;
     }
 
     /**
      * Calculate practical average for a student in a subject.
-     * Sums all column grades where column.name contains 'pract' (case-insensitive)
-     * and divides by the number of such columns.
+     * Uses columns named 'practicas' or 'tarea' (practical evaluations).
+     * Returns the average of those columns.
      */
     private function practicalAverage(int $studentId, int $subjectId): ?float
     {
@@ -264,7 +267,8 @@ class GradeExportService
             return null;
         }
 
-        $practicalColumns = $columns->filter(fn ($col) => str_contains(strtolower($col->name), 'pract'));
+        // Practical columns: 'practicas', 'tarea'
+        $practicalColumns = $columns->filter(fn ($col) => in_array(strtolower($col->name), ['practicas', 'tarea']));
         if ($practicalColumns->isEmpty()) {
             return null;
         }
@@ -278,7 +282,7 @@ class GradeExportService
             }
         }
 
-        return $count > 0 ? round($sum, 2) : null;
+        return $count > 0 ? round($sum / $count, 2) : null;
     }
 
     private function columnGrades(int $studentId, int $subjectId): array
@@ -444,29 +448,39 @@ class GradeExportService
 
         // Fill student data
         $row = self::DETAIL_FIRST_DATA_ROW;
+        $blueColor = '0000CC'; // Azul fuerte para mejor visibilidad
+
         foreach ($this->students as $index => $student) {
             $sheet->setCellValue('C' . $row, $index + 1);
             $sheet->setCellValue('D' . $row, $this->studentFullName($student));
 
-            // Prom. Ev. Teórica
+            // Prom. Ev. Teórica = promedio teórico * 0.3
             $theoAvg = $this->theoreticalAverage($student->id, $subject->id);
-            $sheet->setCellValue('F' . $row, $theoAvg !== null ? $theoAvg : '');
+            $theoWeighted = $theoAvg !== null ? round($theoAvg * self::WEIGHT_THEORY, 2) : null;
+            $sheet->setCellValue('F' . $row, $theoWeighted !== null ? $theoWeighted : '');
+            $sheet->getStyle('F' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
-            // Prom. Eval. Práctica
+            // Prom. Eval. Práctica = promedio práctico * 0.7
             $pracAvg = $this->practicalAverage($student->id, $subject->id);
-            $sheet->setCellValue('G' . $row, $pracAvg !== null ? $pracAvg : '');
+            $pracWeighted = $pracAvg !== null ? round($pracAvg * self::WEIGHT_PRACTICE, 2) : null;
+            $sheet->setCellValue('G' . $row, $pracWeighted !== null ? $pracWeighted : '');
+            $sheet->getStyle('G' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
-            // Calificación Final = PromTeorica + PromPractica
-            $final = $this->finalGrade($student->id, $subject->id);
+            // Calificación Final = PromTeoricaPonderada + PromPracticaPonderada
+            $final = ($theoWeighted !== null ? $theoWeighted : 0) + ($pracWeighted !== null ? $pracWeighted : 0);
+            $final = $final > 0 ? $final : null;
             $sheet->setCellValue('H' . $row, $final !== null ? $final : '');
+            $sheet->getStyle('H' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
             // Prueba de Recuperación
             $q = $this->qualifications->get($student->id . '_' . $subject->id);
             $recovery = $q?->recovery_grade;
             $sheet->setCellValue('I' . $row, $recovery !== null ? $recovery : '');
+            $sheet->getStyle('I' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
             // Estado
             $sheet->setCellValue('J' . $row, $this->observacionSubject($final));
+            $sheet->getStyle('J' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
             $row++;
         }
