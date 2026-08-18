@@ -379,6 +379,8 @@ class GradeExportService
 
         // Fill student data rows
         $row = self::CENTRAL_FIRST_DATA_ROW;
+        $blackColor = '000000'; // Negro
+
         foreach ($this->students as $index => $student) {
             $sheet->setCellValue('C' . $row, $index + 1);
             $sheet->setCellValue('D' . $row, $this->studentFullName($student));
@@ -392,6 +394,7 @@ class GradeExportService
                 $col = $this->colLetter(self::CENTRAL_FIRST_SUBJECT_COL + $i);
                 $final = $this->finalGrade($student->id, $subject->id);
                 $sheet->setCellValue($col . $row, $final ?? '');
+                $sheet->getStyle($col . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackColor))->setBold(true);
             }
 
             // Estado and Observaciones (leave blank)
