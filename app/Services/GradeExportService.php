@@ -17,8 +17,6 @@ use Illuminate\Support\Facades\DB;
 class GradeExportService
 {
     private const NOTA_MINIMA = 61;
-    private const WEIGHT_THEORY = 0.3;
-    private const WEIGHT_PRACTICE = 0.7;
 
     // Centralizador: subject columns G(7)-M(13), Estado=T(20), Observaciones=U(21)
     private const CENTRAL_FIRST_SUBJECT_COL = 7;   // G
@@ -217,8 +215,7 @@ class GradeExportService
 
     /**
      * Calculate theoretical average for a student in a subject.
-     * Uses columns named 'examen' (theoretical evaluations).
-     * Returns the average of those columns.
+     * Uses columns with type='teorica' and weighted average (col.weight).
      */
     private function theoreticalAverage(int $studentId, int $subjectId): ?float
     {
@@ -232,28 +229,27 @@ class GradeExportService
             return null;
         }
 
-        // Theoretical columns: 'examen'
-        $theoreticalColumns = $columns->filter(fn ($col) => in_array(strtolower($col->name), ['examen']));
+        $theoreticalColumns = $columns->filter(fn ($col) => $col->type === 'teorica');
         if ($theoreticalColumns->isEmpty()) {
             return null;
         }
 
         $sum = 0;
-        $count = 0;
+        $weightSum = 0;
         foreach ($q->details as $detail) {
-            if ($theoreticalColumns->contains('id', $detail->evaluation_column_id)) {
-                $sum += $detail->grade;
-                $count++;
+            $col = $theoreticalColumns->firstWhere('id', $detail->evaluation_column_id);
+            if ($col && $detail->grade !== null) {
+                $sum += $detail->grade * $col->weight;
+                $weightSum += $col->weight;
             }
         }
 
-        return $count > 0 ? round($sum / $count, 2) : null;
+        return $weightSum > 0 ? round($sum / $weightSum, 2) : null;
     }
 
     /**
      * Calculate practical average for a student in a subject.
-     * Uses columns named 'practicas' or 'tarea' (practical evaluations).
-     * Returns the average of those columns.
+     * Uses columns with type='practica' and weighted average (col.weight).
      */
     private function practicalAverage(int $studentId, int $subjectId): ?float
     {
@@ -267,22 +263,22 @@ class GradeExportService
             return null;
         }
 
-        // Practical columns: 'practicas', 'tarea'
-        $practicalColumns = $columns->filter(fn ($col) => in_array(strtolower($col->name), ['practicas', 'tarea']));
+        $practicalColumns = $columns->filter(fn ($col) => $col->type === 'practica');
         if ($practicalColumns->isEmpty()) {
             return null;
         }
 
         $sum = 0;
-        $count = 0;
+        $weightSum = 0;
         foreach ($q->details as $detail) {
-            if ($practicalColumns->contains('id', $detail->evaluation_column_id)) {
-                $sum += $detail->grade;
-                $count++;
+            $col = $practicalColumns->firstWhere('id', $detail->evaluation_column_id);
+            if ($col && $detail->grade !== null) {
+                $sum += $detail->grade * $col->weight;
+                $weightSum += $col->weight;
             }
         }
 
-        return $count > 0 ? round($sum / $count, 2) : null;
+        return $weightSum > 0 ? round($sum / $weightSum, 2) : null;
     }
 
     private function columnGrades(int $studentId, int $subjectId): array
@@ -449,20 +445,22 @@ class GradeExportService
         // Fill student data
         $row = self::DETAIL_FIRST_DATA_ROW;
         $blueColor = '0000CC'; // Azul fuerte para mejor visibilidad
+        $theoryWeight = $subject->theory_weight ?? 0.3;
+        $practiceWeight = $subject->practice_weight ?? 0.7;
 
         foreach ($this->students as $index => $student) {
             $sheet->setCellValue('C' . $row, $index + 1);
             $sheet->setCellValue('D' . $row, $this->studentFullName($student));
 
-            // Prom. Ev. Teórica = promedio teórico * 0.3
+            // Prom. Ev. Teórica = promedio teórico * theory_weight
             $theoAvg = $this->theoreticalAverage($student->id, $subject->id);
-            $theoWeighted = $theoAvg !== null ? round($theoAvg * self::WEIGHT_THEORY, 2) : null;
+            $theoWeighted = $theoAvg !== null ? round($theoAvg * $theoryWeight, 2) : null;
             $sheet->setCellValue('F' . $row, $theoWeighted !== null ? $theoWeighted : '');
             $sheet->getStyle('F' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
-            // Prom. Eval. Práctica = promedio práctico * 0.7
+            // Prom. Eval. Práctica = promedio práctico * practice_weight
             $pracAvg = $this->practicalAverage($student->id, $subject->id);
-            $pracWeighted = $pracAvg !== null ? round($pracAvg * self::WEIGHT_PRACTICE, 2) : null;
+            $pracWeighted = $pracAvg !== null ? round($pracAvg * $practiceWeight, 2) : null;
             $sheet->setCellValue('G' . $row, $pracWeighted !== null ? $pracWeighted : '');
             $sheet->getStyle('G' . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blueColor));
 
