@@ -95,6 +95,7 @@ class StudentPensumController extends Controller
                 $careersData[] = [
                     'id' => $career->id,
                     'name' => $career->name,
+                    'matricula' => $sc->matricula,
                     'duration' => $duration,
                     'type' => $type,
                     'total_subjects' => $subjectsCount,

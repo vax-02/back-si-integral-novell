@@ -130,11 +130,13 @@ class StudentController extends Controller
                 'carnet' => $validated['carnet'],
             ]);
 
+            $career = Career::findOrFail($validated['career_id']);
+
             StudentCareer::create([
                 'student_id' => $student->id,
                 'career_id' => $validated['career_id'],
                 'enrolled' => now(),
-                'matricula' => $user->ci,
+                'matricula' => $this->generateMatricula($career, $user),
             ]);
 
             UserRoles::create([
@@ -153,7 +155,6 @@ class StudentController extends Controller
             // Determinar nivel de inicio según convalidación
             $startLevel = 1;
             if (!empty($validated['convalidation_type'])) {
-                $career = Career::findOrFail($validated['career_id']);
                 $startLevel = $this->calculateConvalidationStartLevel(
                     $validated['convalidation_type'],
                     $career
@@ -1263,11 +1264,13 @@ class StudentController extends Controller
                 ], 409);
             }
 
+            $career = Career::findOrFail($validated['career_id']);
+
             StudentCareer::create([
                 'student_id' => $validated['student_id'],
                 'career_id'  => $validated['career_id'],
                 'enrolled'   => now(),
-                'matricula'  => $user->ci,
+                'matricula'  => $this->generateMatricula($career, $user),
             ]);
 
             $parallel = Parallel::findOrFail($request->parallel_id);
@@ -1279,7 +1282,6 @@ class StudentController extends Controller
             // Determinar nivel de inicio según convalidación
             $startLevel = 1;
             if (!empty($validated['convalidation_type'])) {
-                $career = Career::findOrFail($validated['career_id']);
                 $startLevel = $this->calculateConvalidationStartLevel(
                     $validated['convalidation_type'],
                     $career
@@ -1368,5 +1370,32 @@ class StudentController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Genera el número de matrícula con el formato:
+     * [Inicial Carrera][Nº Students 3 dígitos]-[Año 2 dígitos]-[Iniciales APM+Nombre]
+     * Ejemplo: I015-26-PGJ
+     */
+    private function generateMatricula(Career $career, User $user): string
+    {
+        // Inicial de la carrera (primera letra en mayúscula)
+        $careerInitial = strtoupper(mb_substr($career->name, 0, 1));
+
+        // Número secuencial de students con padding de 3 dígitos
+        $studentCount = Student::count() + 1;
+        $number = str_pad($studentCount, 3, '0', STR_PAD_LEFT);
+
+        // Año actual - últimos 2 dígitos
+        $year = substr(now()->format('Y'), -2);
+
+        // Iniciales del estudiante: APM + AP + Nombre (en mayúsculas)
+        $initials = strtoupper(
+            mb_substr($user->first_lastname, 0, 1) .
+            mb_substr($user->second_lastname ?? '', 0, 1) .
+            mb_substr($user->name, 0, 1)
+        );
+
+        return "{$careerInitial}{$number}-{$year}-{$initials}";
     }
 }
