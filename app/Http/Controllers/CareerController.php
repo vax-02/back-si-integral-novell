@@ -56,7 +56,6 @@ class CareerController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'duration' => 'required|in:1,2,3',
-            'area' => 'required|in:Comercial y servicios,Tecnologica',
         ]);
 
         try {
@@ -78,7 +77,6 @@ class CareerController extends Controller
                 'name' => $data['name'],
                 'duration' => $data['duration'],
                 'type' => $data['type'],
-                'area' => $data['area'],
             ],
             'preview' => $preview,
             'valid_subjects' => collect($preview['rows'])->where('valid', true)->count(),
@@ -106,7 +104,6 @@ class CareerController extends Controller
                 'name' => $data['name'],
                 'duration' => $data['duration'],
                 'type' => $data['type'],
-                'area' => $data['area'],
                 'status' => 1,
             ]);
 
@@ -188,7 +185,6 @@ class CareerController extends Controller
                 'duration' => $career->duration,
                 'status' => $career->status,
                 'type' => $career->type,
-                'area' => $career->area,
                 'subjects_by_level' => $grouped,
             ]);
         } catch (\Exception $e) {
@@ -209,7 +205,6 @@ class CareerController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'duration' => 'required|in:1,2,3',
-            'area' => 'required|in:Comercial y servicios,Tecnologica',
         ]);
 
         try {
@@ -323,7 +318,6 @@ class CareerController extends Controller
             'name' => 'required|string|max:255',
             'duration' => 'required|in:1,2,3',
             'type' => 'required|in:1,2', //anual semestral
-            'area' => 'required|in:Comercial y servicios,Tecnologica',
             'file' => 'required|file|mimes:xlsx,xls',
         ]);
 
@@ -331,7 +325,6 @@ class CareerController extends Controller
             'name' => $request->input('name'),
             'duration' => $request->input('duration'),
             'type' => $request->input('type'),
-            'area' => $request->input('area'),
         ];
     }
 

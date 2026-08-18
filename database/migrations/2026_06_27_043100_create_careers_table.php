@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string("name");
             $table->enum("duration", [1,2,3]);
             $table->enum("type", [1, 2]); //Anual / Semestral
-            $table->enum("area", ["Comercial y servicios", "Tecnologica"]);
             $table->tinyInteger("status")->default(1);
             $table->timestamps();
         });
