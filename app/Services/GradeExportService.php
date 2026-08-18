@@ -33,8 +33,8 @@ class GradeExportService
     private const DETAIL_FINAL_COL = 8;             // H
     private const DETAIL_RECUPERACION_COL = 9;      // I
     private const DETAIL_ESTADO_COL = 10;           // J
-    private const DETAIL_FIRST_DATA_ROW = 13;
-    private const DETAIL_LAST_DATA_ROW = 47;
+    private const DETAIL_FIRST_DATA_ROW = 10;
+    private const DETAIL_LAST_DATA_ROW = 44;
     private const DETAIL_LAST_COL = 'J';
 
     private Parallel $parallel;
@@ -462,40 +462,179 @@ class GradeExportService
         $course = $this->parallel->course;
         $career = $course->career;
 
-        // Colors from template
-        $greenBg = '76923C';
-        $whiteFont = 'FFFFFF';
-        $blackFont = '000000';
+        // Colors from the image
+        $darkBg = '333333';       // Dark gray for labels
+        $whiteFont = 'FFFFFF';    // White text
+        $blackFont = '000000';    // Black text
+        $greenBg = '76923C';      // Green for 1° parcial header
+        $blueBg = '4472C4';       // Blue for 2° parcial header
+        $yellowBg = 'FFC000';     // Yellow for nota final header
+        $lightBlueBg = 'D6EAF8';  // Light blue for teorica sub-header
+        $lightGreenBg = 'D5F5E3'; // Light green for practica sub-header
+        $lightYellowBg = 'FEF9E7'; // Light yellow for final sub-header
+        $lightGrayBg = 'F2F2F2';  // Light gray for recuperación
 
-        // Apply row 12 header styles (green background, white font)
-        $headerCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J'];
-        foreach ($headerCols as $col) {
-            $style = $sheet->getStyle($col . '12');
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($greenBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Arial')->setSize(10);
-            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        // Set column widths
+        $sheet->getDefaultColumnDimension()->setWidth(12);
+        $sheet->getColumnDimension('A')->setWidth(2);
+        $sheet->getColumnDimension('B')->setWidth(2);
+        $sheet->getColumnDimension('C')->setWidth(6);   // Nr
+        $sheet->getColumnDimension('D')->setWidth(35);  // Apellidos y Nombres
+        $sheet->getColumnDimension('E')->setWidth(3);   // Separator
+        $sheet->getColumnDimension('F')->setWidth(15);  // Prom. Ev. Teórica
+        $sheet->getColumnDimension('G')->setWidth(15);  // Prom. Eval. Práctica
+        $sheet->getColumnDimension('H')->setWidth(15);  // Calificación Final
+        $sheet->getColumnDimension('I')->setWidth(15);  // Prueba de Recuperación
+        $sheet->getColumnDimension('J')->setWidth(15);  // Estado
+
+        // === ROWS 2-7: Header info with dark labels ===
+        // Row 2: CARRERA
+        $sheet->mergeCells('C2:D2');
+        $sheet->setCellValue('C2', 'CARRERA:');
+        $sheet->getStyle('C2')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C2')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('E2:H2');
+        $sheet->setCellValue('E2', mb_strtoupper($career->name));
+        $sheet->getStyle('E2')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('E2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // Row 3: MENCIÓN
+        $sheet->mergeCells('C3:D3');
+        $sheet->setCellValue('C3', 'MENCIÓN:');
+        $sheet->getStyle('C3')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C3')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C3')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('E3:H3');
+        $sheet->setCellValue('E3', '');
+
+        // Row 4: ÁREA
+        $sheet->mergeCells('C4:D4');
+        $sheet->setCellValue('C4', 'ÁREA:');
+        $sheet->getStyle('C4')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C4')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C4')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('E4:H4');
+        $sheet->setCellValue('E4', mb_strtoupper($career->name));
+
+        // Row 5: MATERIA
+        $sheet->mergeCells('C5:D5');
+        $sheet->setCellValue('C5', 'MATERIA:');
+        $sheet->getStyle('C5')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C5')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('E5:H5');
+        $sheet->setCellValue('E5', $subject->name);
+        $sheet->getStyle('E5')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('E5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // Row 5 right side: SIGLA
+        $sheet->setCellValue('I5', 'SIGLA:');
+        $sheet->getStyle('I5')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('I5')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('I5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->setCellValue('J5', $subject->sigla);
+        $sheet->getStyle('J5')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('J5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // Row 6: DOCENTE
+        $sheet->mergeCells('C6:D6');
+        $sheet->setCellValue('C6', 'DOCENTE:');
+        $sheet->getStyle('C6')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C6')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('E6:H6');
+        $sheet->setCellValue('E6', $this->docenteName($subject->id));
+        $sheet->getStyle('E6')->getFont()->setName('Calibri')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('E6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // Row 6 right side: GESTIÓN
+        $sheet->setCellValue('I6', 'GESTIÓN:');
+        $sheet->getStyle('I6')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('I6')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('I6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->setCellValue('J6', $this->year);
+        $sheet->getStyle('J6')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('J6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // Row 7: AÑO/SEMESTRE
+        $sheet->mergeCells('C7:D7');
+        $sheet->setCellValue('C7', 'AÑO/SEMESTRE:');
+        $sheet->getStyle('C7')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C7')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C7')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('E7:H7');
+        $sheet->setCellValue('E7', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
+        $sheet->getStyle('E7')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('E7')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // Insert logo
+        $logoPath = public_path('images/logo.png');
+        if (file_exists($logoPath)) {
+            $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+            $drawing->setName('Logo NOVELL');
+            $drawing->setDescription('Logo Instituto NOVELL');
+            $drawing->setPath($logoPath);
+            $drawing->setCoordinates('I2');
+            $drawing->setOffsetX(10);
+            $drawing->setOffsetY(5);
+            $drawing->setWidth(180);
+            $drawing->setHeight(80);
+            $drawing->setWorksheet($sheet);
         }
 
-        // Fill header info
-        $sheet->setCellValue('E5', mb_strtoupper($career->name));
-        $sheet->setCellValue('E6', $this->getRegimen());
-        $sheet->setCellValue('E8', $subject->name);
-        $sheet->setCellValue('J8', $subject->sigla);
-        $sheet->setCellValue('E9', $this->docenteName($subject->id));
-        $sheet->setCellValue('J9', mb_strtoupper($this->parallel->turno));
-        $sheet->setCellValue('E10', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
-        $sheet->setCellValue('J10', $this->year);
+        // === ROW 8: Column group headers (colored backgrounds) ===
+        // "CALIFICACIONES" spanning all columns
+        $sheet->mergeCells('C8:J8');
+        $sheet->setCellValue('C8', 'CALIFICACIONES');
+        $sheet->getStyle('C8')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C8')->getFont()->setBold(true)->setName('Calibri')->setSize(12)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C8')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->getRowDimension('8')->setRowHeight(25);
 
-        // Style header info rows (bold labels)
-        $labelCells = ['D5', 'D6', 'D7', 'D8', 'I8', 'D9', 'I9', 'D10', 'I10'];
-        foreach ($labelCells as $cell) {
-            $sheet->getStyle($cell)->getFont()->setBold(true)->setName('Calibri')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
-        }
-        $valueCells = ['E5', 'E6', 'E7', 'E8', 'J8', 'E9', 'J9', 'E10', 'J10'];
-        foreach ($valueCells as $cell) {
-            $sheet->getStyle($cell)->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
-            $sheet->getStyle($cell)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        }
+        // === ROW 9: Sub-headers with colors ===
+        // C9: Nr
+        $sheet->setCellValue('C9', 'Nr');
+        $sheet->getStyle('C9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('C9')->getFont()->setBold(true)->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('C9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->getRowDimension('9')->setRowHeight(30);
+
+        // D9: Apellidos y Nombres
+        $sheet->setCellValue('D9', 'Apellidos y Nombres');
+        $sheet->getStyle('D9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('D9')->getFont()->setBold(true)->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('D9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        // F9: Prom. Ev Teórica (light blue)
+        $sheet->setCellValue('F9', "Prom. Ev\nTeórica");
+        $sheet->getStyle('F9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
+        $sheet->getStyle('F9')->getFont()->setBold(true)->setName('Arial')->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('F9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // G9: Prom. Eval. Práctica (light green)
+        $sheet->setCellValue('G9', "Prom. Eval\nPráctica");
+        $sheet->getStyle('G9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightGreenBg);
+        $sheet->getStyle('G9')->getFont()->setBold(true)->setName('Arial')->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('G9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // H9: Calificación Final (light yellow)
+        $sheet->setCellValue('H9', "Calificación\nFinal");
+        $sheet->getStyle('H9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightYellowBg);
+        $sheet->getStyle('H9')->getFont()->setBold(true)->setName('Arial')->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('H9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // I9: Prueba de Recuperación (light gray)
+        $sheet->setCellValue('I9', "Prueba de\nRecuper.");
+        $sheet->getStyle('I9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightGrayBg);
+        $sheet->getStyle('I9')->getFont()->setBold(true)->setName('Arial')->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+        $sheet->getStyle('I9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // J9: Observación (dark gray)
+        $sheet->setCellValue('J9', 'Observación');
+        $sheet->getStyle('J9')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($darkBg);
+        $sheet->getStyle('J9')->getFont()->setBold(true)->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont));
+        $sheet->getStyle('J9')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
         // Clear existing data rows
         for ($r = self::DETAIL_FIRST_DATA_ROW; $r <= self::DETAIL_LAST_DATA_ROW; $r++) {
@@ -527,7 +666,17 @@ class GradeExportService
         $theoryWeight = $subject->theory_weight ?? 0.3;
         $practiceWeight = $subject->practice_weight ?? 0.7;
 
+        // Alternate row colors
+        $evenRowBg = 'F8F9FA';
+
         foreach ($this->students as $index => $student) {
+            // Alternate row background
+            if ($index % 2 === 1) {
+                foreach (['C', 'D', 'F', 'G', 'H', 'I', 'J'] as $col) {
+                    $sheet->getStyle($col . $row)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($evenRowBg);
+                }
+            }
+
             $sheet->setCellValue('C' . $row, $index + 1);
             $sheet->setCellValue('D' . $row, $this->studentFullName($student));
 
@@ -554,19 +703,27 @@ class GradeExportService
             // Estado
             $sheet->setCellValue('J' . $row, $this->observacionSubject($final));
 
-            // Apply data row styles (black font, no bold, Arial)
-            $dataCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J'];
-            foreach ($dataCols as $col) {
-                $sheet->getStyle($col . $row)->getFont()->setName('Arial')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont))->setBold(false);
-            }
-            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('D' . $row)->getFont()->setName('Arial Narrow')->setSize(11);
-            $sheet->getStyle('F' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('H' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('I' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('J' . $row)->getFont()->setName('Agency FB')->setSize(11);
-            $sheet->getStyle('J' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_JUSTIFY);
+            // Apply data row styles
+            $sheet->getStyle('C' . $row)->getFont()->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->getStyle('D' . $row)->getFont()->setName('Arial Narrow')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('D' . $row)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->getStyle('F' . $row)->getFont()->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('F' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->getStyle('G' . $row)->getFont()->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->getStyle('H' . $row)->getFont()->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('H' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->getStyle('I' . $row)->getFont()->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('I' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->getStyle('J' . $row)->getFont()->setName('Agency FB')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle('J' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
             $row++;
         }
