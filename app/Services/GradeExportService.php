@@ -18,29 +18,24 @@ class GradeExportService
 {
     private const NOTA_MINIMA = 61;
 
-    private const SHEET_CENTRALIZADOR = [
-        'Mañana' => 'Centralizador',
-        'Tarde' => 'Centralizador',
-        'Noche' => 'Centralizador',
-    ];
-
-    private const SHEET_BASE_MATERIA = [
-        'Mañana' => 'materia',
-        'Tarde' => 'materia',
-        'Noche' => 'materia',
-    ];
-
+    // Centralizador: subject columns G(7)-M(13), Estado=T(20), Observaciones=U(21)
     private const CENTRAL_FIRST_SUBJECT_COL = 7;   // G
-    private const CENTRAL_LAST_SUBJECT_COL = 14;   // N
+    private const CENTRAL_LAST_SUBJECT_COL = 13;   // M
+    private const CENTRAL_ESTADO_COL = 20;          // T
+    private const CENTRAL_OBS_COL = 21;             // U
     private const CENTRAL_FIRST_DATA_ROW = 14;
     private const CENTRAL_LAST_DATA_ROW = 43;
-    private const CENTRAL_LAST_COL = 'V';
+    private const CENTRAL_LAST_COL = 'U';
 
-    private const DETAIL_FIRST_EVAL_COL = 6;       // F
-    private const DETAIL_OBS_COL = 10;             // J
+    // Detalle materia: F(6)=PromTeorica, G(7)=PromPractica, H(8)=CalFinal, I(9)=Recuperacion, J(10)=Estado
+    private const DETAIL_PROM_TEORICA_COL = 6;      // F
+    private const DETAIL_PROM_PRACTICA_COL = 7;     // G
+    private const DETAIL_FINAL_COL = 8;             // H
+    private const DETAIL_RECUPERACION_COL = 9;      // I
+    private const DETAIL_ESTADO_COL = 10;           // J
     private const DETAIL_FIRST_DATA_ROW = 13;
     private const DETAIL_LAST_DATA_ROW = 47;
-    private const DETAIL_LAST_COL = 'K';
+    private const DETAIL_LAST_COL = 'J';
 
     private Parallel $parallel;
     private int $year;
@@ -58,16 +53,38 @@ class GradeExportService
 
         $spreadsheet = IOFactory::load(storage_path('app/templates/centralizador.xlsx'));
 
-        $turno = $this->parallel->turno;
-        $central = $spreadsheet->getSheetByName(self::SHEET_CENTRALIZADOR[$turno] ?? '')
-            ?: $spreadsheet->getSheetByNameOrThrow(self::SHEET_CENTRALIZADOR['Mañana']);
-        $base = $spreadsheet->getSheetByName(self::SHEET_BASE_MATERIA[$turno] ?? '')
-            ?: $spreadsheet->getSheetByNameOrThrow(self::SHEET_BASE_MATERIA['Mañana']);
+        // Get the centralizador sheet
+        $central = $spreadsheet->getSheetByName('Centralizador Calificaciones')
+            ?? $spreadsheet->getSheetByName('Centralizador')
+            ?? $spreadsheet->getActiveSheet();
 
-        $central->setTitle('Centralizador');
+        // Get first materia sheet as base template
+        $baseSheet = null;
+        foreach ($this->subjects as $subject) {
+            $found = $spreadsheet->getSheetByName($subject->sigla);
+            if ($found) {
+                $baseSheet = $found;
+                break;
+            }
+        }
+        // Fallback: use any sheet that's not the centralizador or LISTA
+        if (!$baseSheet) {
+            foreach ($spreadsheet->getSheetNames() as $name) {
+                if (!str_starts_with($name, 'Centralizador') && !str_starts_with($name, 'LISTA')) {
+                    $baseSheet = $spreadsheet->getSheetByName($name);
+                    break;
+                }
+            }
+        }
+
+        // Remove all sheets except centralizador
+        $keepNames = [$central->getTitle()];
+        if ($baseSheet) {
+            $keepNames[] = $baseSheet->getTitle();
+        }
 
         foreach ($spreadsheet->getSheetNames() as $name) {
-            if ($name === 'Centralizador' || $name === $base->getTitle()) {
+            if (in_array($name, $keepNames, true)) {
                 continue;
             }
             $sheet = $spreadsheet->getSheetByName($name);
@@ -78,14 +95,22 @@ class GradeExportService
 
         $this->fillCentralizador($central);
 
+        // Create a sheet for each subject
         foreach ($this->subjects as $subject) {
-            $sheet = $base->copy();
+            if ($baseSheet) {
+                $sheet = $baseSheet->copy();
+            } else {
+                $sheet = new Worksheet();
+            }
             $sheet->setTitle($this->uniqueSheetTitle($spreadsheet, $subject->sigla));
             $spreadsheet->addSheet($sheet);
             $this->fillDetalleMateria($sheet, $subject);
         }
 
-        $spreadsheet->removeSheetByIndex($spreadsheet->getIndex($base));
+        // Remove the base template sheet
+        if ($baseSheet && $spreadsheet->sheetNameExists($baseSheet->getTitle())) {
+            $spreadsheet->removeSheetByIndex($spreadsheet->getIndex($baseSheet));
+        }
 
         $this->cleanupBrokenReferences($spreadsheet);
 
@@ -188,6 +213,74 @@ class GradeExportService
         return round(array_sum($grades) / count($grades), 2);
     }
 
+    /**
+     * Calculate theoretical average for a student in a subject.
+     * Sums all column grades where column.name contains 'teor' (case-insensitive)
+     * and divides by the number of such columns.
+     */
+    private function theoreticalAverage(int $studentId, int $subjectId): ?float
+    {
+        $q = $this->qualifications->get($studentId . '_' . $subjectId);
+        if (!$q) {
+            return null;
+        }
+
+        $columns = $this->columnsBySubject->get($subjectId);
+        if (!$columns || $columns->isEmpty()) {
+            return null;
+        }
+
+        $theoreticalColumns = $columns->filter(fn ($col) => str_contains(strtolower($col->name), 'teor'));
+        if ($theoreticalColumns->isEmpty()) {
+            return null;
+        }
+
+        $sum = 0;
+        $count = 0;
+        foreach ($q->details as $detail) {
+            if ($theoreticalColumns->contains('id', $detail->evaluation_column_id)) {
+                $sum += $detail->grade;
+                $count++;
+            }
+        }
+
+        return $count > 0 ? round($sum, 2) : null;
+    }
+
+    /**
+     * Calculate practical average for a student in a subject.
+     * Sums all column grades where column.name contains 'pract' (case-insensitive)
+     * and divides by the number of such columns.
+     */
+    private function practicalAverage(int $studentId, int $subjectId): ?float
+    {
+        $q = $this->qualifications->get($studentId . '_' . $subjectId);
+        if (!$q) {
+            return null;
+        }
+
+        $columns = $this->columnsBySubject->get($subjectId);
+        if (!$columns || $columns->isEmpty()) {
+            return null;
+        }
+
+        $practicalColumns = $columns->filter(fn ($col) => str_contains(strtolower($col->name), 'pract'));
+        if ($practicalColumns->isEmpty()) {
+            return null;
+        }
+
+        $sum = 0;
+        $count = 0;
+        foreach ($q->details as $detail) {
+            if ($practicalColumns->contains('id', $detail->evaluation_column_id)) {
+                $sum += $detail->grade;
+                $count++;
+            }
+        }
+
+        return $count > 0 ? round($sum, 2) : null;
+    }
+
     private function columnGrades(int $studentId, int $subjectId): array
     {
         $q = $this->qualifications->get($studentId . '_' . $subjectId);
@@ -214,7 +307,7 @@ class GradeExportService
             return 'Abandono';
         }
         $avg = array_sum($grades) / count($grades);
-        return $avg >= self::NOTA_MINIMA ? 'Aprobado' : 'Reprobado';
+        return $avg >= self::NOTA_MINIMA ? 'APROBADO' : 'REPROBADO';
     }
 
     private function observacionSubject(?float $final): string
@@ -222,7 +315,13 @@ class GradeExportService
         if ($final === null) {
             return 'Abandono';
         }
-        return $final >= self::NOTA_MINIMA ? 'Aprobado' : 'Reprobado';
+        return $final >= self::NOTA_MINIMA ? 'APROBADO' : 'REPROBADO';
+    }
+
+    private function getRegimen(): string
+    {
+        $career = $this->parallel->course->career;
+        return (int) $career->type === 2 ? 'SEMESTRAL' : 'ANUAL';
     }
 
     private function fillCentralizador(Worksheet $sheet): void
@@ -231,12 +330,14 @@ class GradeExportService
         $career = $course->career;
         $totalCols = self::CENTRAL_LAST_SUBJECT_COL - self::CENTRAL_FIRST_SUBJECT_COL + 1;
 
+        // Fill header info
         $sheet->setCellValue('E7', $this->year);
         $sheet->setCellValue('U5', mb_strtoupper($this->parallel->turno));
         $sheet->setCellValue('E10', mb_strtoupper($career->name));
-        $sheet->setCellValue('E11', (int) $career->type === 2 ? 'SEMESTRAL' : 'ANUAL');
+        $sheet->setCellValue('E11', $this->getRegimen());
         $sheet->setCellValue('E12', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
 
+        // Fill subject siglas (row 7) and names (row 8)
         $used = 0;
         foreach ($this->subjects as $i => $subject) {
             if ($i >= $totalCols) {
@@ -247,19 +348,22 @@ class GradeExportService
             $sheet->setCellValue($col . '8', $subject->name);
             $used++;
         }
+        // Clear unused subject columns
         for ($c = self::CENTRAL_FIRST_SUBJECT_COL + $used; $c <= self::CENTRAL_LAST_SUBJECT_COL; $c++) {
             $col = $this->colLetter($c);
             $sheet->setCellValue($col . '7', '');
             $sheet->setCellValue($col . '8', '');
         }
 
-        $clearCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'V'];
+        // Clear data rows
+        $clearCols = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'T', 'U'];
         for ($r = self::CENTRAL_FIRST_DATA_ROW; $r <= self::CENTRAL_LAST_DATA_ROW; $r++) {
             foreach ($clearCols as $col) {
                 $sheet->setCellValue($col . $r, '');
             }
         }
 
+        // Extend rows if needed
         $n = count($this->students);
         if (self::CENTRAL_FIRST_DATA_ROW + $n - 1 > self::CENTRAL_LAST_DATA_ROW) {
             $extra = self::CENTRAL_FIRST_DATA_ROW + $n - 1 - self::CENTRAL_LAST_DATA_ROW;
@@ -273,21 +377,27 @@ class GradeExportService
             );
         }
 
+        // Fill student data rows
         $row = self::CENTRAL_FIRST_DATA_ROW;
         foreach ($this->students as $index => $student) {
             $sheet->setCellValue('C' . $row, $index + 1);
             $sheet->setCellValue('D' . $row, $this->studentFullName($student));
             $sheet->setCellValue('F' . $row, $student->user->ci ?? '');
 
+            // Fill grades for each subject
             foreach ($this->subjects as $i => $subject) {
                 if ($i >= $totalCols) {
                     break;
                 }
                 $col = $this->colLetter(self::CENTRAL_FIRST_SUBJECT_COL + $i);
-                $sheet->setCellValue($col . $row, $this->finalGrade($student->id, $subject->id));
+                $final = $this->finalGrade($student->id, $subject->id);
+                $sheet->setCellValue($col . $row, $final ?? '');
             }
 
-            $sheet->setCellValue('V' . $row, $this->observacion($student->id));
+            // Estado and Observaciones (leave blank)
+            $sheet->setCellValue('T' . $row, $this->observacion($student->id));
+            $sheet->setCellValue('U' . $row, '');
+
             $row++;
         }
     }
@@ -296,46 +406,29 @@ class GradeExportService
     {
         $course = $this->parallel->course;
         $career = $course->career;
-        $columns = $this->columnsBySubject->get($subject->id);
-        $columns = $columns ? $columns->values() : collect();
 
-        $firstEval = self::DETAIL_FIRST_EVAL_COL;
-        $n = $columns->count();
-        $finalCol = $firstEval + $n;
-        $obsCol = self::DETAIL_OBS_COL;
-
-        if ($finalCol > $obsCol) {
-            $insert = $finalCol - $obsCol;
-            $sheet->insertNewColumnBefore($this->colLetter($obsCol), $insert);
-            $obsCol += $insert;
-            $this->copyDetailColumnStyles($sheet, $insert);
-        }
-
+        // Fill header info
         $sheet->setCellValue('E5', mb_strtoupper($career->name));
-        $sheet->setCellValue('E6', '');
-        $sheet->setCellValue('E7', '');
+        $sheet->setCellValue('E6', $this->getRegimen());
         $sheet->setCellValue('E8', $subject->name);
         $sheet->setCellValue('J8', $subject->sigla);
         $sheet->setCellValue('E9', $this->docenteName($subject->id));
-        $sheet->setCellValue('E10', mb_strtoupper($course->name));
+        $sheet->setCellValue('J9', mb_strtoupper($this->parallel->turno));
+        $sheet->setCellValue('E10', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
         $sheet->setCellValue('J10', $this->year);
 
-        for ($i = 0; $i < $n; $i++) {
-            $sheet->setCellValue($this->colLetter($firstEval + $i) . '12', $columns[$i]->name);
-        }
-        $sheet->setCellValue($this->colLetter($finalCol) . '12', 'Calificación Final');
-        $sheet->setCellValue($this->colLetter($obsCol) . '12', 'Observación');
-        for ($c = $finalCol + 1; $c < $obsCol; $c++) {
-            $sheet->setCellValue($this->colLetter($c) . '12', '');
-        }
-
-        $dataCols = array_merge(['C', 'D'], $this->colRange($firstEval, $obsCol));
+        // Clear existing data rows
         for ($r = self::DETAIL_FIRST_DATA_ROW; $r <= self::DETAIL_LAST_DATA_ROW; $r++) {
-            foreach ($dataCols as $col) {
-                $sheet->setCellValue($col . $r, '');
-            }
+            $sheet->setCellValue('C' . $r, '');
+            $sheet->setCellValue('D' . $r, '');
+            $sheet->setCellValue('F' . $r, '');
+            $sheet->setCellValue('G' . $r, '');
+            $sheet->setCellValue('H' . $r, '');
+            $sheet->setCellValue('I' . $r, '');
+            $sheet->setCellValue('J' . $r, '');
         }
 
+        // Extend rows if needed
         $nStudents = count($this->students);
         if (self::DETAIL_FIRST_DATA_ROW + $nStudents - 1 > self::DETAIL_LAST_DATA_ROW) {
             $extra = self::DETAIL_FIRST_DATA_ROW + $nStudents - 1 - self::DETAIL_LAST_DATA_ROW;
@@ -345,38 +438,37 @@ class GradeExportService
                 $extra,
                 self::DETAIL_LAST_DATA_ROW,
                 self::DETAIL_LAST_COL,
-                ['D{r}:E{r}', $this->colLetter($obsCol) . '{r}:' . $this->colLetter($obsCol + 1) . '{r}']
+                ['D{r}:E{r}']
             );
         }
 
+        // Fill student data
         $row = self::DETAIL_FIRST_DATA_ROW;
         foreach ($this->students as $index => $student) {
             $sheet->setCellValue('C' . $row, $index + 1);
             $sheet->setCellValue('D' . $row, $this->studentFullName($student));
 
-            $colGrades = $this->columnGrades($student->id, $subject->id);
-            for ($i = 0; $i < $n; $i++) {
-                $cell = $this->colLetter($firstEval + $i) . $row;
-                $grade = $colGrades[$columns[$i]->id] ?? null;
-                $sheet->setCellValue($cell, $grade !== null ? $grade : '');
-            }
+            // Prom. Ev. Teórica
+            $theoAvg = $this->theoreticalAverage($student->id, $subject->id);
+            $sheet->setCellValue('F' . $row, $theoAvg !== null ? $theoAvg : '');
 
+            // Prom. Eval. Práctica
+            $pracAvg = $this->practicalAverage($student->id, $subject->id);
+            $sheet->setCellValue('G' . $row, $pracAvg !== null ? $pracAvg : '');
+
+            // Calificación Final = PromTeorica + PromPractica
             $final = $this->finalGrade($student->id, $subject->id);
-            $sheet->setCellValue($this->colLetter($finalCol) . $row, $final);
-            $sheet->setCellValue($this->colLetter($obsCol) . $row, $this->observacionSubject($final));
-            $row++;
-        }
-    }
+            $sheet->setCellValue('H' . $row, $final !== null ? $final : '');
 
-    private function copyDetailColumnStyles(Worksheet $sheet, int $insert): void
-    {
-        $src = $this->colLetter(self::DETAIL_FIRST_EVAL_COL);
-        for ($c = self::DETAIL_OBS_COL; $c < self::DETAIL_OBS_COL + $insert; $c++) {
-            $dest = $this->colLetter($c);
-            $sheet->getColumnDimension($dest)->setWidth($sheet->getColumnDimension($src)->getWidth());
-            for ($r = 12; $r <= self::DETAIL_LAST_DATA_ROW; $r++) {
-                $sheet->getStyle($dest . $r)->applyFromArray($this->styleArrayFrom($sheet, $src . $r));
-            }
+            // Prueba de Recuperación
+            $q = $this->qualifications->get($student->id . '_' . $subject->id);
+            $recovery = $q?->recovery_grade;
+            $sheet->setCellValue('I' . $row, $recovery !== null ? $recovery : '');
+
+            // Estado
+            $sheet->setCellValue('J' . $row, $this->observacionSubject($final));
+
+            $row++;
         }
     }
 
