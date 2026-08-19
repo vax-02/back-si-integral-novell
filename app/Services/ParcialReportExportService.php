@@ -41,8 +41,6 @@ class ParcialReportExportService
     private const COL_OBSERVACION = 13;  // M
 
     private const DATA_START_ROW = 10;
-    private const HEADER_ROW_8 = 8;
-    private const HEADER_ROW_9 = 9;
 
     private Subject $subject;
     private Parallel $parallel;
@@ -114,8 +112,8 @@ class ParcialReportExportService
         $this->sheet->getDefaultColumnDimension()->setWidth(12);
         $this->sheet->getColumnDimension('A')->setWidth(2);
         $this->sheet->getColumnDimension('B')->setWidth(2);
-        $this->sheet->getColumnDimension('C')->setWidth(6);
-        $this->sheet->getColumnDimension('D')->setWidth(35);
+        $this->sheet->getColumnDimension('C')->setWidth(18);
+        $this->sheet->getColumnDimension('D')->setWidth(30);
         $this->sheet->getColumnDimension('E')->setWidth(3);
         $this->sheet->getColumnDimension('F')->setWidth(15);
         $this->sheet->getColumnDimension('G')->setWidth(15);
@@ -136,52 +134,59 @@ class ParcialReportExportService
 
         $labels = [
             2 => 'CARRERA:',
-            3 => 'MENCIÓN:',
-            4 => 'ÁREA:',
-            5 => 'MATERIA:',
-            6 => 'DOCENTE:',
-            7 => 'AÑO/SEMESTRE:',
+            3 => 'MATERIA:',
+            4 => 'DOCENTE:',
+            5 => 'CURSO:',
+            6 => 'AÑO/SEMESTRE:',
         ];
 
         $values = [
             2 => mb_strtoupper($career?->name ?? ''),
-            3 => '',
-            4 => mb_strtoupper($career?->name ?? ''),
-            5 => $subject->name,
-            6 => $this->docenteName(),
-            7 => mb_strtoupper($this->parallel->course?->name ?? '') . ' - ' . $this->parallel->paralelo,
+            3 => $subject->name,
+            4 => $this->docenteName(),
+            5 => mb_strtoupper($this->parallel->turno ?? '') . ' - ' . $this->parallel->paralelo,
+            6 => mb_strtoupper($this->parallel->course?->name ?? '')
         ];
 
         foreach ($labels as $r => $label) {
-            $sheet->mergeCells("C{$r}:D{$r}");
             $sheet->setCellValue("C{$r}", $label);
             $sheet->getStyle("C{$r}")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
             $sheet->getStyle("C{$r}")->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
             $sheet->getStyle("C{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
-            $sheet->mergeCells("E{$r}:H{$r}");
-            $sheet->setCellValue("E{$r}", $values[$r]);
-            $sheet->getStyle("E{$r}")->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
-            $sheet->getStyle("E{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            $sheet->setCellValue("D{$r}", $values[$r]);
+            $sheet->getStyle("D{$r}")->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
+            $sheet->getStyle("D{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
         }
 
+
+        $sheet->getStyle("D2:D6")->getBorders()->getAllBorders()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $sheet->getStyle("D2:D6")->getBorders()->getAllBorders()->getColor()->setRGB('000000');
+
         // SIGLA (row 5)
-        $sheet->setCellValue('I5', 'SIGLA:');
-        $sheet->getStyle('I5')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
-        $sheet->getStyle('I5')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
-        $sheet->getStyle('I5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        $sheet->setCellValue('J5', $subject->sigla);
-        $sheet->getStyle('J5')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
-        $sheet->getStyle('J5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->setCellValue('L6', 'SIGLA:');
+        $sheet->getStyle('L6')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
+        $sheet->getStyle('L6')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
+        $sheet->getStyle('L6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->setCellValue('M6', $subject->sigla);
+        $sheet->getStyle('M6')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
+        $sheet->getStyle('M6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
         // GESTIÓN (row 6)
-        $sheet->setCellValue('I6', 'GESTIÓN:');
-        $sheet->getStyle('I6')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
-        $sheet->getStyle('I6')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
-        $sheet->getStyle('I6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        $sheet->setCellValue('J6', $this->year());
-        $sheet->getStyle('J6')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
-        $sheet->getStyle('J6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->setCellValue('L7', 'GESTIÓN:');
+        $sheet->getStyle('L7')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
+        $sheet->getStyle('L7')->getFont()->setBold(true)->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
+        $sheet->getStyle('L7')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->setCellValue('M7', $this->year());
+        $sheet->getStyle('M7')->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
+        $sheet->getStyle('M7')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+        $sheet->getStyle("M6:M7")->getBorders()->getAllBorders()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $sheet->getStyle("M6:M7")->getBorders()->getAllBorders()->getColor()->setRGB('000000');
     }
 
     private function fillParcialHeaders(): void
@@ -189,11 +194,6 @@ class ParcialReportExportService
         $sheet = $this->sheet;
         $numParciales = $this->subject->num_parciales;
 
-        // C8:D8 dark
-        $sheet->mergeCells('C8:D8');
-        $sheet->setCellValue('C8', '');
-        $sheet->getStyle('C8')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
-        $sheet->getRowDimension(8)->setRowHeight(25);
 
         $col = self::COL_FIRST_DATA; // E=5
 
@@ -217,19 +217,6 @@ class ParcialReportExportService
         $sheet->getStyle("{$nfLetter}8")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
         $col++;
 
-        // Prueba de Recuper. + Observación
-        $recLetter = Coordinate::stringFromColumnIndex($col);
-        $sheet->setCellValue("{$recLetter}8", 'Prueba de Recuper.');
-        $sheet->getStyle("{$recLetter}8")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
-        $sheet->getStyle("{$recLetter}8")->getFont()->setBold(true)->setName('Arial')->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
-        $sheet->getStyle("{$recLetter}8")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        $col++;
-
-        $obsLetter = Coordinate::stringFromColumnIndex($col);
-        $sheet->setCellValue("{$obsLetter}8", 'Observación');
-        $sheet->getStyle("{$obsLetter}8")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_DARK);
-        $sheet->getStyle("{$obsLetter}8")->getFont()->setBold(true)->setName('Arial')->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_WHITE));
-        $sheet->getStyle("{$obsLetter}8")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
     }
 
     private function fillSubHeaders(): void
@@ -237,14 +224,14 @@ class ParcialReportExportService
         $sheet = $this->sheet;
         $numParciales = $this->subject->num_parciales;
 
-        // C9: Nr
-        $sheet->setCellValue('C9', 'Nr');
-        $this->applyDarkHeader('C9');
+        $sheet->setCellValue('B9', '#');
+        $this->applyDarkHeader('B9');
         $sheet->getRowDimension(9)->setRowHeight(35);
 
         // D9: Apellidos y Nombres
-        $sheet->setCellValue('D9', 'Apellidos y Nombres');
-        $this->applyDarkHeader('D9');
+        $sheet->mergeCells('C9:D9');
+        $sheet->setCellValue('C9', 'Apellidos y Nombres');
+        $this->applyDarkHeader('C9');
 
         $col = self::COL_FIRST_DATA; // E=5
 
@@ -253,14 +240,17 @@ class ParcialReportExportService
             $praLetter = Coordinate::stringFromColumnIndex($col + 1);
             $finLetter = Coordinate::stringFromColumnIndex($col + 2);
 
+            $sheet->getColumnDimension($theoLetter)->setWidth(7);
+            $sheet->getColumnDimension($praLetter)->setWidth(9);
+            $sheet->getColumnDimension($finLetter)->setWidth(10);
+
+            $this->applyDarkHeader("{$theoLetter}9");
+            $this->applyDarkHeader("{$praLetter}9");
+            $this->applyDarkHeader("{$finLetter}9");
+
             $sheet->setCellValue("{$theoLetter}9", "Prom. Ev\nTeórica");
-            $this->applyColoredSubHeader("{$theoLetter}9", self::COLOR_LIGHT_BLUE);
-
             $sheet->setCellValue("{$praLetter}9", "Prom. Eval\nPráctica");
-            $this->applyColoredSubHeader("{$praLetter}9", self::COLOR_LIGHT_GREEN);
-
             $sheet->setCellValue("{$finLetter}9", "Calificación\nFinal");
-            $this->applyColoredSubHeader("{$finLetter}9", self::COLOR_LIGHT_YELLOW);
 
             $col += 3;
         }
@@ -273,8 +263,10 @@ class ParcialReportExportService
 
         // L9: Prueba de Recuperación
         $recLetter = Coordinate::stringFromColumnIndex($col);
+
+        $sheet->getColumnDimension($recLetter)->setWidth(9);
+        $this->applyDarkHeader("{$recLetter}9");
         $sheet->setCellValue("{$recLetter}9", "Prueba de\nRecuper.");
-        $this->applyColoredSubHeader("{$recLetter}9", self::COLOR_LIGHT_GRAY);
         $col++;
 
         // M9: Observación
@@ -313,21 +305,22 @@ class ParcialReportExportService
 
             // Alternate row background
             if ($studentIdx % 2 === 1) {
-                foreach (['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'] as $colLetter) {
+                foreach (['B','C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] as $colLetter) {
                     $sheet->getStyle("{$colLetter}{$row}")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB(self::COLOR_ALT_ROW);
                 }
             }
-
             // Nr
-            $sheet->setCellValue("C{$row}", $index);
+
+            $sheet->setCellValue("B{$row}", $index);
             $sheet->getStyle("C{$row}")->getFont()->setName('Arial')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
             $sheet->getStyle("C{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
             // Name
-            $fullName = trim(($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '') . ' ' . ($student->user->name ?? ''));
-            $sheet->setCellValue("D{$row}", $fullName);
-            $sheet->getStyle("D{$row}")->getFont()->setName('Arial Narrow')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
-            $sheet->getStyle("D{$row}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            $sheet->mergeCells("C{$row}:D{$row}");
+            $fullName = mb_strtoupper(trim(($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '') . ' ' . ($student->user->name ?? '')));
+            $sheet->setCellValue("C{$row}", $fullName);
+            $sheet->getStyle("C{$row}")->getFont()->setName('Arial Narrow')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
+            $sheet->getStyle("C{$row}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
             $col = self::COL_FIRST_DATA;
             $parcialFinals = [];
@@ -419,9 +412,19 @@ class ParcialReportExportService
             $sheet->getStyle("{$obsLetter}{$row}")->getFont()->setName('Agency FB')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
             $sheet->getStyle("{$obsLetter}{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
+
+
             $row++;
             $index++;
+
+
         }
+        $lastRow = $row-1;
+        $sheet->getStyle("B10:M{$lastRow}")->getBorders()->getAllBorders()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $sheet->getStyle("B10:M{$lastRow}")->getBorders()->getAllBorders()->getColor()->setRGB('000000');
+
     }
 
     private function applyDataCell(string $cell, bool $bold = false): void
@@ -434,13 +437,10 @@ class ParcialReportExportService
     private function fillSummary(): void
     {
         $sheet = $this->sheet;
-        $row = self::DATA_START_ROW + count($this->students) + 1;
+        $row = self::DATA_START_ROW + count($this->students) + 5;
         $obsCol = Coordinate::stringFromColumnIndex(self::COL_OBSERVACION);
         $promCol = Coordinate::stringFromColumnIndex(self::COL_PROMEDIO);
         $dataEnd = self::DATA_START_ROW + count($this->students);
-
-        $sheet->setCellValue("C{$row}", 'RESUMEN');
-        $sheet->getStyle("C{$row}")->getFont()->setBold(true)->setName('Arial')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(self::COLOR_BLACK));
 
         $totalStudents = count($this->students);
         $aprobados = 0;
@@ -467,13 +467,56 @@ class ParcialReportExportService
             ['Promedio General:', $countPromedios > 0 ? round($sumPromedios / $countPromedios, 2) : '—'],
         ];
 
+
+        $summaryStart = $row + 1;
+        $summaryEnd = $summaryStart + count($summaryItems) - 1;
+
         foreach ($summaryItems as $i => [$label, $value]) {
-            $r = $row + 1 + $i;
-            $sheet->setCellValue("C{$r}", $label);
-            $sheet->getStyle("C{$r}")->getFont()->setBold(true)->setName('Arial')->setSize(10);
-            $sheet->setCellValue("D{$r}", $value);
-            $sheet->getStyle("D{$r}")->getFont()->setName('Arial')->setSize(10);
+            $r = $summaryStart + $i;
+
+            $sheet->mergeCells("E{$r}:F{$r}");
+            $sheet->getStyle("E{$r}:F{$r}")
+                ->getFont()
+                ->setBold(true)
+                ->setName('Arial')
+                ->setSize(10);
+
+            $sheet->getStyle("E{$r}:F{$r}")
+                ->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT)
+                ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+            $sheet->setCellValue("E{$r}", $label);
+            $sheet->getStyle("E{$r}")
+                ->getFont()
+                ->setName('Arial')
+                ->setSize(10);
+
+
+            $sheet->setCellValue("G{$r}", $value);
+            $sheet->getStyle("G{$r}")
+                ->getFont()
+                ->setName('Arial')
+                ->setSize(10);
+
+            $sheet->getStyle("G{$r}")
+                ->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
         }
+
+        // Bordes dinámicos del Summary
+        $sheet->getStyle("E{$summaryStart}:G{$summaryEnd}")
+            ->getBorders()
+            ->getAllBorders()
+            ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $sheet->getStyle("E{$summaryStart}:G{$summaryEnd}")
+            ->getBorders()
+            ->getAllBorders()
+            ->getColor()
+            ->setRGB('000000');
+
     }
 
     private function insertLogo(): void
@@ -485,11 +528,11 @@ class ParcialReportExportService
             $drawing->setName('Logo NOVELL');
             $drawing->setDescription('Logo Instituto NOVELL');
             $drawing->setPath($logoPath);
-            $drawing->setCoordinates('I2');
-            $drawing->setOffsetX(10);
+            $drawing->setCoordinates('L1');
+            $drawing->setOffsetX(0);
             $drawing->setOffsetY(5);
-            $drawing->setWidth(180);
-            $drawing->setHeight(80);
+            $drawing->setWidth(160);
+            $drawing->setHeight(60);
             $drawing->setWorksheet($sheet);
         }
     }
