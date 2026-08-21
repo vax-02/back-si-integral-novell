@@ -71,7 +71,7 @@ class StudentController extends Controller
             ]);
         }catch(\Exception $e){
             return response()->json([
-                'message' => 'Error al obtener estudiantes--'.$e,
+                'message' => 'Error al obtener estudiantes.',
             ], 500);
         }
     }
@@ -93,7 +93,7 @@ class StudentController extends Controller
             'second_lastname' => ['nullable', 'string', 'max:255'],
             'ci' => ['required', 'string', 'max:12', 'unique:users,ci'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'cellphone' => ['nullable', 'max:8'],
+            'cellphone' => ['nullable', 'numeric', 'max:99999999'],
 
             // Student
             'career_id' => ['required', 'exists:careers,id'],
@@ -374,7 +374,7 @@ class StudentController extends Controller
             'second_lastname' => ['nullable', 'string', 'max:255'],
             'ci' => ['required', 'string', 'max:12', 'unique:users,ci,' . $student->user_id],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $student->user_id],
-            'cellphone' => ['nullable', 'max:8'],
+            'cellphone' => ['nullable', 'numeric', 'max:99999999'],
             'birth_certificate' => ['required', 'boolean'],
             'school_diploma' => ['required', 'boolean'],
             'carnet' => ['required', 'boolean'],
@@ -1296,10 +1296,10 @@ class StudentController extends Controller
                 'matricula'  => $this->generateMatricula($career, $user),
             ]);
 
-            $parallel = Parallel::findOrFail($request->parallel_id);
+            $parallel = Parallel::findOrFail($validated['parallel_id']);
             StudentParallel::create([
-                'student_id' => $request->student_id,
-                'parallel_id' => $request->parallel_id,
+                'student_id' => $validated['student_id'],
+                'parallel_id' => $validated['parallel_id'],
             ]);
 
             // Determinar nivel de inicio según convalidación
@@ -1372,6 +1372,12 @@ class StudentController extends Controller
             if (!$user) {
                 return response()->json([
                     'message' => 'El estudiante no tiene usuario asociado.',
+                ], 422);
+            }
+
+            if ($user->id === auth()->id()) {
+                return response()->json([
+                    'message' => 'No puede bloquear su propio acceso.',
                 ], 422);
             }
 
