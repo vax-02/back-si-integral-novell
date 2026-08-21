@@ -333,6 +333,29 @@ class StudentController extends Controller
     }
 
     /**
+     * Export student academic history as Excel.
+     */
+    public function exportAcademicHistory(Student $student)
+    {
+        try {
+            $careerId = request('career_id');
+            $service = new \App\Services\StudentAcademicHistoryExportService();
+            $filePath = $service->generate($student->id, $careerId);
+
+            $fileName = basename($filePath);
+
+            return response()->download($filePath, $fileName, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al generar el historial académico',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Show the form for editing the specified resource.
      */
     public function edit(Student $student)
