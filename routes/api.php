@@ -45,6 +45,7 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1,2'])->group(function (
     Route::get('parallels/{id}/first-course', [ParallelController::class, 'getFirstCourse']);
     Route::get('pays/cards', [PayController::class, 'dataCards']);
     Route::get('pays/{pay}/receipt', [PayController::class, 'receipt']);
+    Route::get('students/{student}/academic-history/export', [StudentController::class, 'exportAcademicHistory']);
 });
 
 Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () {
@@ -80,7 +81,6 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::post('students/{student}/advance-level', [StudentController::class, 'advanceLevel']);
     Route::post('students/{student}/preview-advance', [StudentController::class, 'previewAdvanceLevel']);
     Route::post('students/{student}/graduate', [StudentController::class, 'graduate']);
-    Route::get('students/{student}/academic-history/export', [StudentController::class, 'exportAcademicHistory']);
     Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
     Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
     Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
