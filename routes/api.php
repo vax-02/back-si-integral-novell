@@ -118,6 +118,8 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::get('grades/parcial-report/export', [GradeController::class, 'exportParcialReport']);
 
     Route::put('users/{user}/change-status', [UserController::class, 'changeStatus']);
+    Route::put('users/{user}/roles', [UserController::class, 'syncRoles']);
+    Route::put('users/{user}/reset-password', [UserController::class, 'resetPassword']);
 });
 
 // Rutas compartidas entre Administrador y Secretaria con URI duplicada del apiResource.

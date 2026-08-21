@@ -281,7 +281,20 @@ class UserController extends Controller
      */
     public function destroy(User $user)
     {
+        if (auth()->user()->id === $user->id) {
+            return response()->json(['message' => 'No puedes eliminar tu propia cuenta.'], 403);
+        }
+
+        $hasAdminRole = $user->roles->contains('id', 1);
+        if ($hasAdminRole) {
+            $adminCount = UserRoles::where('role_id', 1)->count();
+            if ($adminCount <= 1) {
+                return response()->json(['message' => 'No se puede eliminar el único administrador.'], 403);
+            }
+        }
+
         try {
+            $user->tokens()->delete();
             $user->delete();
 
             return response()->json([
@@ -302,8 +315,20 @@ class UserController extends Controller
     }
     public function changeStatus(User $user)
     {
+        if (auth()->user()->id === $user->id) {
+            return response()->json(['message' => 'No puedes bloquear tu propia cuenta.'], 403);
+        }
+
+        $hasAdminRole = $user->roles->contains('id', 1);
+        if ($hasAdminRole) {
+            $adminCount = UserRoles::where('role_id', 1)->count();
+            if ($adminCount <= 1) {
+                return response()->json(['message' => 'No se puede bloquear al único administrador.'], 403);
+            }
+        }
+
         try {
-            $user->status = $user->status  ? 0 : 1;
+            $user->status = $user->status ? 0 : 1;
 
             if ((int) $user->status !== 1) {
                 $user->tokens()->delete();
@@ -313,6 +338,50 @@ class UserController extends Controller
 
             return response()->json([
                 'message' => 'Estado actualizado correctamente.',
+                'status' => $user->status,
+            ]);
+        } catch (Exception $exception) {
+            return $this->errorResponse($exception);
+        }
+    }
+
+    public function syncRoles(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'role_ids' => ['required', 'array'],
+            'role_ids.*' => ['integer', 'exists:roles,id'],
+        ]);
+
+        try {
+            UserRoles::where('user_id', $user->id)->delete();
+
+            foreach ($validated['role_ids'] as $roleId) {
+                UserRoles::create([
+                    'user_id' => $user->id,
+                    'role_id' => $roleId,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Roles actualizados correctamente.',
+                'user' => $user->load('roles'),
+            ]);
+        } catch (Exception $exception) {
+            return $this->errorResponse($exception);
+        }
+    }
+
+    public function resetPassword(User $user)
+    {
+        try {
+            $newPassword = Hash::make($user->ci);
+            $user->password = $newPassword;
+            $user->save();
+
+            $user->tokens()->delete();
+
+            return response()->json([
+                'message' => 'Contraseña restablecida correctamente.',
             ]);
         } catch (Exception $exception) {
             return $this->errorResponse($exception);
