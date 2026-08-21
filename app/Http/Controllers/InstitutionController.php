@@ -13,7 +13,7 @@ class InstitutionController extends Controller
      */
     public function index()
     {
-        try{
+        try {
             $i = Institution::first();
 
             return response()->json([
@@ -21,7 +21,7 @@ class InstitutionController extends Controller
                 'cellphone' => $i->cellphone ?? '',
                 'email' => $i->email ?? '',
             ]);
-        }catch(Exception $e){
+        } catch (Exception $e) {
             return response()->json([
                 'address' => '',
                 'cellphone' => '',
@@ -31,67 +31,32 @@ class InstitutionController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Institution $institution)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Institution $institution)
-    {
-        //
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Institution $institution)
     {
-        
-        try{
-            $request->validate([
-                'address' => 'string',
-                'cellphone' => 'max:8',
-                'email' => 'email'
+        try {
+            $validated = $request->validate([
+                'address' => 'required|string|max:255',
+                'cellphone' => 'required|string|digits_between:8,10',
+                'email' => 'required|email|max:255',
             ]);
-            $institution->address = $request->address;
-            $institution->cellphone = $request->cellphone;
-            $institution->email = $request->email;
 
-            $institution->save();
+            $institution->update($validated);
+
             return response()->json([
-                'message' => 'Informacion actualizada'
+                'message' => 'Información actualizada',
+                'institution' => $institution,
             ]);
-        }catch(Exception $e){
-            return response()->json([]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Error de validación',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al actualizar la institución',
+            ], 500);
         }
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Institution $institution)
-    {
-        //
     }
 }
