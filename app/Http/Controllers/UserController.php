@@ -70,8 +70,14 @@ class UserController extends Controller
     }
 
     public function updateProfile(Request $request, User $user){
+        if (auth()->user()->id !== $user->id) {
+            return response()->json([
+                'message' => 'No tienes permiso para editar este perfil.',
+            ], 403);
+        }
+
         $validated = $request->validate([
-            'phone' => ['required', 'integer', 'min:60000000', 'max:79999999'],
+            'phone' => ['required', 'string', 'digits_between:8', 'regex:/^[0-9]+$/'],
         ]);
 
         try {
@@ -79,11 +85,12 @@ class UserController extends Controller
             $user->save();
 
             return response()->json([
-                'message' => 'Usuario actualizado correctamente.',
+                'message' => 'Perfil actualizado correctamente.',
+                'user' => $user,
             ], 200);
         } catch (Exception $exception) {
             return response()->json([
-                'message' => 'Error al actualizar el usuario.',
+                'message' => 'Error al actualizar el perfil.',
             ], 500);
         }
     }
