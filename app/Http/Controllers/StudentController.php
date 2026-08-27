@@ -642,12 +642,14 @@ class StudentController extends Controller
             $preview = $this->evaluateAdvance($student, $career);
 
             if (empty($preview['has_active_parallel'])) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'El estudiante no tiene un paralelo activo en esta carrera.'
                 ], 422);
             }
 
             if ($preview['is_last_level']) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'El estudiante ya cursa el último nivel de la carrera.'
                 ], 422);
@@ -658,12 +660,14 @@ class StudentController extends Controller
                 ->findOrFail($validated['parallel_id']);
 
             if ($newParallel->course->career_id != $validated['career_id']) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'El paralelo seleccionado no pertenece a la carrera indicada.'
                 ], 422);
             }
 
             if ((int) $newParallel->course->level !== $preview['new_level']) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'El paralelo seleccionado no corresponde al siguiente nivel (nivel ' . $preview['new_level'] . ').'
                 ], 422);
@@ -676,6 +680,7 @@ class StudentController extends Controller
                 ->exists();
 
             if ($existsActive) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'El estudiante ya se encuentra asignado a este paralelo.'
                 ], 409);
@@ -689,6 +694,7 @@ class StudentController extends Controller
             $available = (int) $newParallel->limit - $destStudentsCount;
 
             if ($available <= 0) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'El paralelo seleccionado no tiene cupo disponible.'
                 ], 422);
@@ -913,6 +919,7 @@ class StudentController extends Controller
             $summary = [
                 'total' => $assignments->count(),
                 'last_level' => 0,
+                'no_active_parallel' => 0,
                 'advanceable' => 0,
                 'with_alerts' => 0,
             ];
@@ -922,7 +929,26 @@ class StudentController extends Controller
 
                 $preview = $this->evaluateAdvance($student, $career);
 
-                $isLastLevel = empty($preview['has_active_parallel']) || $preview['is_last_level'];
+                if (empty($preview['has_active_parallel'])) {
+                    $summary['no_active_parallel']++;
+                    $students[] = [
+                        'id' => $student->id,
+                        'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                        'ci' => $student->user->ci ?? '—',
+                        'is_last_level' => true,
+                        'no_active_parallel' => true,
+                        'current_level' => null,
+                        'new_level' => null,
+                        'approved' => [],
+                        'repeated' => [],
+                        'assigned' => [],
+                        'missing_by_prerequisite' => [],
+                        'prerequisite_alerts' => [],
+                    ];
+                    continue;
+                }
+
+                $isLastLevel = $preview['is_last_level'];
 
                 if ($isLastLevel) {
                     $summary['last_level']++;
@@ -941,6 +967,7 @@ class StudentController extends Controller
                     'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
                     'ci' => $student->user->ci ?? '—',
                     'is_last_level' => $isLastLevel,
+                    'no_active_parallel' => false,
                     'current_level' => $preview['current_level'] ?? $currentLevel,
                     'new_level' => $preview['new_level'] ?? ($currentLevel + 1),
                     'approved' => $preview['approved'] ?? [],
