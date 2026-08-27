@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserRoles;
+use App\Models\Docente;
+use App\Models\DocenteSubject;
 use Auth;
 use Exception;
 use Illuminate\Support\Facades\Crypt;
@@ -332,6 +334,16 @@ class UserController extends Controller
 
             if ((int) $user->status !== 1) {
                 $user->tokens()->delete();
+
+                $hasDocenteRole = $user->roles->contains('id', 3);
+                if ($hasDocenteRole) {
+                    $docente = Docente::where('user_id', $user->id)->first();
+                    if ($docente) {
+                        DocenteSubject::where('docente_id', $docente->id)
+                            ->where('status', true)
+                            ->update(['status' => false]);
+                    }
+                }
             }
 
             $user->save();
