@@ -115,6 +115,10 @@
                         <td><span class="value" >{{ strtoupper($pay->description) }}</span></td>
                     </tr>
                     <tr>
+                        <td><span class="label">FORMA DE PAGO:</span></td>
+                        <td><span class="value">{{ strtoupper($pay->payment_method === 'qr' ? 'QR' : 'EFECTIVO') }}</span></td>
+                    </tr>
+                    <tr>
                         <td><span class="label">FECHA:</span></td>
                         <td>
                             <span class="value" >
@@ -222,6 +226,10 @@
                     <tr>
                         <td><span class="label">MENSUALIDAD Nº:</span></td>
                         <td><span class="value" >{{ strtoupper($pay->description) }}</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="label">FORMA DE PAGO:</span></td>
+                        <td><span class="value">{{ strtoupper($pay->payment_method === 'qr' ? 'QR' : 'EFECTIVO') }}</span></td>
                     </tr>
                     <tr>
                         <td><span class="label">FECHA:</span></td>

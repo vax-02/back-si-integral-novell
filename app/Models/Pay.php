@@ -13,6 +13,7 @@ class Pay extends Model
         'amount',
         'discount',
         'description',
+        'payment_method',
         'status',
     ];
 
