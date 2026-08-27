@@ -472,7 +472,7 @@ class StudentController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'first_lastname' => ['required', 'string', 'max:255'],
             'second_lastname' => ['nullable', 'string', 'max:255'],
-            'ci' => ['required', 'string', 'max:12', 'unique:users,ci,' . $student->user_id],
+            'ci' => ['nullable', 'string', 'max:12'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $student->user_id],
             'cellphone' => ['nullable', 'numeric', 'max:99999999'],
             'birth_certificate' => ['required', 'boolean'],
@@ -491,7 +491,6 @@ class StudentController extends Controller
                 'name' => $validated['name'],
                 'first_lastname' => $validated['first_lastname'],
                 'second_lastname' => $validated['second_lastname'] ?? null,
-                'ci' => $validated['ci'],
                 'email' => $validated['email'],
                 'cellphone' => $validated['cellphone'] ?? null,
             ]);
