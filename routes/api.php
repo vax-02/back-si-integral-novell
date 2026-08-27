@@ -70,8 +70,10 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::apiResource('pays', PayController::class);
     Route::apiResource('users', UserController::class);
     Route::apiResource('students', StudentController::class);
+    Route::post('students/from-user', [StudentController::class, 'storeFromUser']);
     Route::apiResource('careers', CareerController::class);
     Route::apiResource('docentes', DocenteController::class);
+    Route::post('docentes/from-user', [DocenteController::class, 'storeFromUser']);
 
     Route::post('student-careers',[StudentController::class, 'addCareer']);
     Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);

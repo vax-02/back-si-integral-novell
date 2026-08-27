@@ -127,6 +127,57 @@ class DocenteController extends Controller
         }
     }
 
+    public function storeFromUser(Request $request)
+    {
+        $request->validate([
+            'user_id'          => ['required', 'integer', 'exists:users,id'],
+            'degree_id'        => ['required', 'integer', 'exists:degrees,id'],
+            'cv'               => ['sometimes', 'boolean'],
+            'professional_title' => ['sometimes', 'boolean'],
+            'carnet'           => ['sometimes', 'boolean'],
+            'certificate'      => ['sometimes', 'boolean'],
+        ]);
+
+        $exists = Docente::where('user_id', $request->user_id)->exists();
+        if ($exists) {
+            return response()->json(['message' => 'Este usuario ya tiene un registro de docente.'], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $docente = Docente::create([
+                'user_id'           => $request->user_id,
+                'degree_id'         => $request->degree_id,
+                'cv'                => $request->boolean('cv', false),
+                'professional_title'=> $request->boolean('professional_title', false),
+                'carnet'            => $request->boolean('carnet', false),
+                'certificate'       => $request->boolean('certificate', false),
+            ]);
+
+            $hasRole = UserRoles::where('user_id', $request->user_id)
+                ->where('role_id', 3)
+                ->exists();
+
+            if (!$hasRole) {
+                UserRoles::create([
+                    'user_id' => $request->user_id,
+                    'role_id' => 3,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Docente creado exitosamente.',
+                'data'    => $docente->load(['user', 'degree', 'subjects']),
+            ], 201);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     //  SHOW  GET /api/docentes/{docente}
     // ─────────────────────────────────────────────────────────────

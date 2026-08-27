@@ -204,6 +204,106 @@ class StudentController extends Controller
         }
     }
 
+    public function storeFromUser(Request $request)
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'career_id' => ['required', 'exists:careers,id'],
+            'parallel_id' => ['required', 'exists:parallels,id'],
+            'birth_certificate' => ['required'],
+            'school_diploma' => ['required'],
+            'carnet' => ['required'],
+            'convalidation_type' => ['nullable', 'in:BTH,Tecnico_Medio'],
+        ]);
+
+        $exists = Student::where('user_id', $validated['user_id'])->exists();
+        if ($exists) {
+            return response()->json(['message' => 'Este usuario ya tiene un registro de estudiante.'], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $user = User::findOrFail($validated['user_id']);
+
+            $student = Student::create([
+                'user_id' => $user->id,
+                'birth_certificate' => $validated['birth_certificate'],
+                'school_diploma' => $validated['school_diploma'],
+                'carnet' => $validated['carnet'],
+            ]);
+
+            $career = Career::findOrFail($validated['career_id']);
+
+            StudentCareer::create([
+                'student_id' => $student->id,
+                'career_id' => $validated['career_id'],
+                'enrolled' => now(),
+                'matricula' => $this->generateMatricula($career, $user),
+            ]);
+
+            $hasRole = UserRoles::where('user_id', $user->id)
+                ->where('role_id', 4)
+                ->exists();
+
+            if (!$hasRole) {
+                UserRoles::create([
+                    'user_id' => $user->id,
+                    'role_id' => 4,
+                ]);
+            }
+
+            $parallel = Parallel::findOrFail($validated['parallel_id']);
+
+            StudentParallel::create([
+                'student_id' => $student->id,
+                'parallel_id' => $parallel->id,
+                'turno' => $parallel->turno,
+            ]);
+
+            $startLevel = 1;
+            if (!empty($validated['convalidation_type'])) {
+                $startLevel = $this->calculateConvalidationStartLevel(
+                    $validated['convalidation_type'],
+                    $career
+                );
+
+                StudentConvalidation::create([
+                    'student_id' => $student->id,
+                    'career_id' => $validated['career_id'],
+                    'type' => $validated['convalidation_type'],
+                    'start_level' => $startLevel,
+                ]);
+            }
+
+            $subjects = Subject::where('career_id', $validated['career_id'])
+                ->where('level', '>=', $startLevel)
+                ->orderBy('level')
+                ->get();
+
+            foreach ($subjects as $s) {
+                StudentSubject::create([
+                    'student_id' => $student->id,
+                    'subject_id' => $s->id,
+                    'status' => $s->level == $startLevel ? 'Registrado' : 'Falta'
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Estudiante registrado correctamente.',
+            ], 201);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error al registrar el estudiante.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     /**
      * Calcula el nivel de inicio según tipo de convalidación y tipo de carrera.
      * BTH: Anual → nivel 2, Semestral → nivel 3
