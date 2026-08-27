@@ -630,4 +630,53 @@ class AttendanceControllerTest extends TestCase
         $this->assertEquals('puntual', $entries[0]['status']);
         $this->assertEquals('09:05:00', $entries[0]['first_clock']);
     }
+
+    // ═════════════════════════════════════════════════════════════
+    //  TEST 23: Los segundos no se redondean hacia arriba
+    //           61 seg de retraso = 1 min, no 2 min
+    // ═════════════════════════════════════════════════════════════
+    public function test_seconds_are_not_rounded_up_for_delay(): void
+    {
+        // tol=15, ref=09:00 → límite = 09:15:00
+        $this->createSchedule('Viernes', '09:00');
+
+        // 09:16:01 = 61 segundos de retraso → debe ser 1 min, no 2
+        $this->createRecord('2026-08-21', '09:16:01');
+
+        $days = $this->getDayEntries('2026-08-21', '2026-08-21');
+        $entries = $days[0]['entries'];
+
+        $this->assertEquals('retraso', $entries[0]['status']);
+        $this->assertEquals(1, $entries[0]['minutes_late']);
+    }
+
+    public function test_119_seconds_is_1_minute_not_2(): void
+    {
+        // tol=15, ref=09:00 → límite = 09:15:00
+        $this->createSchedule('Viernes', '09:00');
+
+        // 09:16:59 = 119 seg = 1 min 59 seg → debe ser 1 min
+        $this->createRecord('2026-08-21', '09:16:59');
+
+        $days = $this->getDayEntries('2026-08-21', '2026-08-21');
+        $entries = $days[0]['entries'];
+
+        $this->assertEquals('retraso', $entries[0]['status']);
+        $this->assertEquals(1, $entries[0]['minutes_late']);
+    }
+
+    public function test_120_seconds_is_2_minutes(): void
+    {
+        // tol=15, ref=09:00 → límite = 09:15:00
+        $this->createSchedule('Viernes', '09:00');
+
+        // 09:17:00 = 120 seg = 2 min exactos → debe ser 2 min
+        $this->createRecord('2026-08-21', '09:17:00');
+
+        $days = $this->getDayEntries('2026-08-21', '2026-08-21');
+        $entries = $days[0]['entries'];
+
+        $this->assertEquals('retraso', $entries[0]['status']);
+        $this->assertEquals(2, $entries[0]['minutes_late']);
+    }
 }

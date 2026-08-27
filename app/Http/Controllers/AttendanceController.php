@@ -331,7 +331,7 @@ class AttendanceController extends Controller
                                     $status = 'puntual';
                                 } else {
                                     $status = 'retraso';
-                                    $minutesLate = (int) ceil(
+                                    $minutesLate = (int) floor(
                                         (strtotime($clock) - strtotime($allowed->format('H:i:s'))) / 60
                                     );
                                     $totalLate++;
@@ -530,7 +530,7 @@ class AttendanceController extends Controller
                                 $status = 'puntual';
                             } else {
                                 $status = 'retraso';
-                                $minutesLate = (int) ceil(
+                                $minutesLate = (int) floor(
                                     (strtotime($clock) - strtotime($allowed->format('H:i:s'))) / 60
                                 );
                                 $totalLate++;
