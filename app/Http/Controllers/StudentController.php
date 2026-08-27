@@ -1388,7 +1388,7 @@ class StudentController extends Controller
 
             $career = Career::findOrFail($validated['career_id']);
 
-            StudentCareer::create([
+            $studentCareer = StudentCareer::create([
                 'student_id' => $validated['student_id'],
                 'career_id'  => $validated['career_id'],
                 'enrolled'   => now(),
