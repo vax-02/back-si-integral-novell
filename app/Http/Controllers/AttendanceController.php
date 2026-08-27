@@ -269,18 +269,18 @@ class AttendanceController extends Controller
                         ->sortBy('clock_at')
                         ->values();
 
-                    // Matching: cada ingreso se asigna al horario más cercano.
-                    // Luego, cada horario que no tiene ingreso asignado es "falta".
+                    // Matching paso 1: cada ingreso se empareja con el horario más cercano.
+                    // Paso 2: si múltiples ingresos compiten por el mismo horario, se queda el más temprano.
                     $clockToRef = []; // idx_clock => idx_ref
-                    $usedClocks = [];
                     foreach ($dayRecords as $ci => $r) {
                         $clockTime = strtotime($r->clock_at->format('H:i:s'));
                         $bestRef = null;
                         $bestDiff = PHP_INT_MAX;
                         foreach ($refs as $ri => $reference) {
                             $refTime = strtotime($reference);
+                            $minWindow = $refTime - ($docente->tolerance_minutes * 60);
                             $maxWindow = $refTime + (6 * 3600);
-                            if ($clockTime < strtotime($reference) - ($docente->tolerance_minutes * 60)) continue;
+                            if ($clockTime < $minWindow) continue;
                             if ($clockTime > $maxWindow) continue;
                             $diff = abs($clockTime - $refTime);
                             if ($diff < $bestDiff) {
@@ -288,24 +288,32 @@ class AttendanceController extends Controller
                                 $bestRef = $ri;
                             }
                         }
-                        if ($bestRef !== null && !isset($clockToRef[$ci])) {
-                            // Verificar que este ref no esté ya tomado por un ingreso más cercano
-                            $alreadyAssigned = false;
-                            foreach ($clockToRef as $assignedCi => $assignedRef) {
-                                if ($assignedRef === $bestRef) {
-                                    $oldClockTime = strtotime($dayRecords[$assignedCi]->clock_at->format('H:i:s'));
-                                    if ($bestDiff < abs($oldClockTime - strtotime($refs[$bestRef]))) {
-                                        unset($clockToRef[$assignedCi]);
-                                    } else {
-                                        $alreadyAssigned = true;
-                                    }
-                                    break;
-                                }
-                            }
-                            if (!$alreadyAssigned) {
-                                $clockToRef[$ci] = $bestRef;
+                        if ($bestRef !== null) {
+                            $clockToRef[$ci] = $bestRef;
+                        }
+                    }
+
+                    // Paso 2: para cada horario, si hay múltiples ingresos, quedarse con el más temprano
+                    $usedClocks = [];
+                    $finalRef = []; // ref_idx => clock_idx (temporal)
+                    foreach ($refs as $ri => $reference) {
+                        $candidates = [];
+                        foreach ($clockToRef as $ci => $assignedRef) {
+                            if ($assignedRef === $ri && !in_array($ci, $usedClocks)) {
+                                $candidates[$ci] = strtotime($dayRecords[$ci]->clock_at->format('H:i:s'));
                             }
                         }
+                        if (!empty($candidates)) {
+                            asort($candidates);
+                            $earliestCi = array_key_first($candidates);
+                            $usedClocks[] = $earliestCi;
+                            $finalRef[$ri] = $earliestCi;
+                        }
+                    }
+                    // Invertir a formato clock_idx => ref_idx
+                    $clockToRef = [];
+                    foreach ($finalRef as $ri => $ci) {
+                        $clockToRef[$ci] = $ri;
                     }
 
                     $entries = [];
@@ -470,8 +478,9 @@ class AttendanceController extends Controller
                     $bestDiff = PHP_INT_MAX;
                     foreach ($refs as $ri => $reference) {
                         $refTime = strtotime($reference);
+                        $minWindow = $refTime - ($docente->tolerance_minutes * 60);
                         $maxWindow = $refTime + (6 * 3600);
-                        if ($clockTime < strtotime($reference) - ($docente->tolerance_minutes * 60)) continue;
+                        if ($clockTime < $minWindow) continue;
                         if ($clockTime > $maxWindow) continue;
                         $diff = abs($clockTime - $refTime);
                         if ($diff < $bestDiff) {
@@ -479,23 +488,32 @@ class AttendanceController extends Controller
                             $bestRef = $ri;
                         }
                     }
-                    if ($bestRef !== null && !isset($clockToRef[$ci])) {
-                        $alreadyAssigned = false;
-                        foreach ($clockToRef as $assignedCi => $assignedRef) {
-                            if ($assignedRef === $bestRef) {
-                                $oldClockTime = strtotime($dayRecords[$assignedCi]->clock_at->format('H:i:s'));
-                                if ($bestDiff < abs($oldClockTime - strtotime($refs[$bestRef]))) {
-                                    unset($clockToRef[$assignedCi]);
-                                } else {
-                                    $alreadyAssigned = true;
-                                }
-                                break;
-                            }
-                        }
-                        if (!$alreadyAssigned) {
-                            $clockToRef[$ci] = $bestRef;
+                    if ($bestRef !== null) {
+                        $clockToRef[$ci] = $bestRef;
+                    }
+                }
+
+                // Paso 2: para cada horario, si hay múltiples ingresos, quedarse con el más temprano
+                $usedClocks = [];
+                $finalRef = [];
+                foreach ($refs as $ri => $reference) {
+                    $candidates = [];
+                    foreach ($clockToRef as $ci => $assignedRef) {
+                        if ($assignedRef === $ri && !in_array($ci, $usedClocks)) {
+                            $candidates[$ci] = strtotime($dayRecords[$ci]->clock_at->format('H:i:s'));
                         }
                     }
+                    if (!empty($candidates)) {
+                        asort($candidates);
+                        $earliestCi = array_key_first($candidates);
+                        $usedClocks[] = $earliestCi;
+                        $finalRef[$ri] = $earliestCi;
+                    }
+                }
+                // Invertir a formato clock_idx => ref_idx
+                $clockToRef = [];
+                foreach ($finalRef as $ri => $ci) {
+                    $clockToRef[$ci] = $ri;
                 }
 
                 $entries = [];
