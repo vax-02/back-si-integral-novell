@@ -10,6 +10,8 @@ class Pay extends Model
         'user_id',
         'student_id',
         'concept_id',
+        'workshop_concept_id',
+        'source',
         'amount',
         'discount',
         'description',
@@ -28,5 +30,10 @@ class Pay extends Model
     public function concept()
     {
         return $this->belongsTo(Concept::class);
+    }
+
+    public function workshopConcept()
+    {
+        return $this->belongsTo(WorkshopConcept::class);
     }
 }

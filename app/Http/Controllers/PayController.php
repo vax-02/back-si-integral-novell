@@ -23,32 +23,40 @@ class PayController extends Controller
             "student_id" => ['required','integer']
         ]);
         try{
-            $pays = Pay::with('concept.career')
-                ->with('casher')
-                ->where('student_id', $request->student_id)
-                ->get();
-            $pays = Pay::with(['concept.career', 'casher' => function($query) {
+            $pays = Pay::with(['concept.career', 'workshopConcept.edition.workshop', 'casher' => function($query) {
                 $query->select('id', 'name','first_lastname','second_lastname');
             }])->where('student_id', $request->student_id)->get();
 
-            $groupedPays = $pays->groupBy('concept.career.id')
-                ->map(function ($payments) {
-
+            $groupedPays = $pays->groupBy(function ($pay) {
+                if ($pay->source === 'workshop' && $pay->workshopConcept) {
+                    return 'workshop_' . $pay->workshopConcept->edition->workshop->id;
+                }
+                return 'career_' . ($pay->concept->career->id ?? 0);
+            })->map(function ($payments) {
+                $first = $payments->first();
+                if ($first->source === 'workshop' && $first->workshopConcept) {
                     return [
-                        'career_id' => $payments->first()->concept->career->id,
-                        'career_name' => $payments->first()->concept->career->name,
+                        'source' => 'workshop',
+                        'career_id' => null,
+                        'career_name' => $first->workshopConcept->edition->workshop->name ?? 'Taller',
                         'payments' => $payments,
                         'total' => $payments->sum('amount')
                     ];
+                }
+                return [
+                    'source' => 'career',
+                    'career_id' => $first->concept->career->id ?? null,
+                    'career_name' => $first->concept->career->name ?? 'Sin carrera',
+                    'payments' => $payments,
+                    'total' => $payments->sum('amount')
+                ];
+            })->values();
 
-                })
-                ->values();
             return response()->json([
                 'pays' => $groupedPays,
-
             ]);
         }catch(Exception $e){
-
+            return response()->json(['pays' => [], 'error' => $e->getMessage()], 500);
         }
     }
     public function dataCards(){
@@ -78,29 +86,53 @@ class PayController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'student_id' => 'required|integer|exists:students,id',
-            'concept_id' => 'required|integer|exists:concepts,id',
-            'amount' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0',
-            'description' => 'nullable|string',
-            'payment_method' => 'required|in:efectivo,qr',
-        ]);
+        $source = $request->input('source', 'career');
+
+        if ($source === 'workshop') {
+            $request->validate([
+                'student_id' => 'required|integer|exists:students,id',
+                'workshop_concept_id' => 'required|integer|exists:workshop_concepts,id',
+                'amount' => 'required|numeric|min:0',
+                'discount' => 'nullable|numeric|min:0',
+                'description' => 'nullable|string',
+                'payment_method' => 'required|in:efectivo,qr',
+            ]);
+        } else {
+            $request->validate([
+                'student_id' => 'required|integer|exists:students,id',
+                'concept_id' => 'required|integer|exists:concepts,id',
+                'amount' => 'required|numeric|min:0',
+                'discount' => 'nullable|numeric|min:0',
+                'description' => 'nullable|string',
+                'payment_method' => 'required|in:efectivo,qr',
+            ]);
+        }
 
         try {
-            $pay = Pay::create([
+            $payData = [
                 'user_id' => auth()->id(),
                 'student_id' => $request->student_id,
-                'concept_id' => $request->concept_id,
                 'amount' => $request->amount,
                 'discount' => $request->discount ?? 0,
                 'description' => $request->description,
                 'payment_method' => $request->payment_method,
-                'source' => 'career',
+                'source' => $source,
                 'status' => 1,
-            ]);
+            ];
 
-            $pay->load(['concept.career', 'student.user', 'casher']);
+            if ($source === 'workshop') {
+                $payData['workshop_concept_id'] = $request->workshop_concept_id;
+            } else {
+                $payData['concept_id'] = $request->concept_id;
+            }
+
+            $pay = Pay::create($payData);
+
+            if ($source === 'workshop') {
+                $pay->load(['workshopConcept.edition.workshop', 'student.user', 'casher']);
+            } else {
+                $pay->load(['concept.career', 'student.user', 'casher']);
+            }
 
             return response()->json([
                 'message' => 'Pago registrado exitosamente',
@@ -125,7 +157,7 @@ class PayController extends Controller
     public function receipt(Request $request, Pay $pay)
     {
         try{
-            $pay->load(['concept.career', 'student.user', 'casher']);
+            $pay->load(['concept.career', 'workshopConcept.edition.workshop', 'student.user', 'casher']);
             $institution = Institution::first();
             $numeroLetras = NumberToString::convertir($pay->amount - $pay->discount);
             $pdf = Pdf::loadView('receipt', compact('pay', 'numeroLetras'));
