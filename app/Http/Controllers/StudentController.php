@@ -1527,6 +1527,41 @@ class StudentController extends Controller
         }
     }
 
+    public function workshopEnrollments(Student $student)
+    {
+        try {
+            $enrollments = \App\Models\WorkshopEnrollment::where('student_id', $student->id)
+                ->with('edition.workshop')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            return response()->json(['enrollments' => $enrollments]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al obtener inscripciones', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function myWorkshops()
+    {
+        try {
+            $user = auth()->user();
+            $student = \App\Models\Student::where('user_id', $user->id)->first();
+
+            if (!$student) {
+                return response()->json(['enrollments' => []]);
+            }
+
+            $enrollments = \App\Models\WorkshopEnrollment::where('student_id', $student->id)
+                ->with('edition.workshop.modules')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            return response()->json(['enrollments' => $enrollments]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al obtener inscripciones', 'error' => $e->getMessage()], 500);
+        }
+    }
+
     /**
      * Genera el número de matrícula con el formato:
      * [Inicial Carrera][Nº Students 3 dígitos]-[Año 2 dígitos]-[Iniciales APM+Nombre]
