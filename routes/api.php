@@ -78,9 +78,12 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::delete('workshop-editions/{edition}', [WorkshopEditionController::class, 'destroy']);
     Route::put('workshop-editions/{edition}/toggle-status', [WorkshopEditionController::class, 'toggleStatus']);
 
+    Route::get('students/{student}/workshop-enrollments', [StudentController::class, 'workshopEnrollments']);
     Route::get('workshop-editions/{edition}/concepts', [WorkshopEditionController::class, 'concepts']);
     Route::post('workshop-editions/{edition}/concepts', [WorkshopEditionController::class, 'storeConcept']);
     Route::delete('workshop-concepts/{concept}', [WorkshopEditionController::class, 'destroyConcept']);
+    Route::get('workshop-concepts/all', [WorkshopEditionController::class, 'allConcepts']);
+
 
     Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
@@ -200,6 +203,7 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:4'])->group(function () 
     Route::get('student/my-subjects', [StudentSubjectController::class, 'mySubjects']);
     Route::get('student/my-grades', [StudentGradeController::class, 'myGrades']);
     Route::get('student/my-pays', [StudentPayController::class, 'myPays']);
+    Route::get('student/my-workshops', [StudentController::class, 'myWorkshops']);
     Route::get('student/materials', [MaterialController::class, 'studentMaterials']);
 });
 
