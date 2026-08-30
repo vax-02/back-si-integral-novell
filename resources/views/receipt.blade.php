@@ -88,26 +88,26 @@
                         <td><span class="label">POR CONCEPTO DE:</span></td>
                         <td>
                             <span class="value" >
-                                {{ strtoupper($pay->concept->type ?? '...') }}
+                                {{ strtoupper($pay->concept->type ?? $pay->workshopConcept->type ?? '...') }}
                             </span>
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="label">CARRERA:</span></td>
+                        <td><span class="label">{{ $pay->source === 'workshop' ? 'TALLER:' : 'CARRERA:' }}</span></td>
                         <td>
-                            <span class="value" >{{ strtoupper($pay->concept->career->name ?? '...') }}</span>
+                            <span class="value" >{{ strtoupper($pay->concept->career->name ?? $pay->workshopConcept->edition->workshop->name ?? '...') }}</span>
                         </td>
                     </tr>
                     <tr>
                         <td><span class="label">TURNO:</span></td>
                         <td>
-                            <span class="value">{{ strtoupper($pay->concept->turno ?? '...') }}</span>
+                            <span class="value">{{ strtoupper($pay->concept->turno ?? $pay->workshopConcept->edition->shift ?? '...') }}</span>
                         </td>
                     </tr>
                     <tr>
                         <td><span class="label">GESTION:</span></td>
                         <td>
-                            <span class="value" >{{ strtoupper($pay->concept->gestion ?? 'ICER. SEM.') }}</span>
+                            <span class="value" >{{ strtoupper($pay->concept->gestion ?? $pay->workshopConcept->edition->name ?? 'ICER. SEM.') }}</span>
                         </td>
                     </tr>
                     <tr>
@@ -201,26 +201,26 @@
                         <td><span class="label">POR CONCEPTO DE:</span></td>
                         <td>
                             <span class="value" >
-                                {{ strtoupper($pay->concept->type ?? '...') }}
+                                {{ strtoupper($pay->concept->type ?? $pay->workshopConcept->type ?? '...') }}
                             </span>
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="label">CARRERA:</span></td>
+                        <td><span class="label">{{ $pay->source === 'workshop' ? 'TALLER:' : 'CARRERA:' }}</span></td>
                         <td>
-                            <span class="value" >{{ strtoupper($pay->concept->career->name ?? '...') }}</span>
+                            <span class="value" >{{ strtoupper($pay->concept->career->name ?? $pay->workshopConcept->edition->workshop->name ?? '...') }}</span>
                         </td>
                     </tr>
                     <tr>
                         <td><span class="label">TURNO:</span></td>
                         <td>
-                            <span class="value">{{ strtoupper($pay->concept->turno ?? '...') }}</span>
+                            <span class="value">{{ strtoupper($pay->concept->turno ?? $pay->workshopConcept->edition->shift ?? '...') }}</span>
                         </td>
                     </tr>
                     <tr>
                         <td><span class="label">GESTION:</span></td>
                         <td>
-                            <span class="value" >{{ strtoupper($pay->concept->gestion ?? 'ICER. SEM.') }}</span>
+                            <span class="value" >{{ strtoupper($pay->concept->gestion ?? $pay->workshopConcept->edition->name ?? 'ICER. SEM.') }}</span>
                         </td>
                     </tr>
                     <tr>
