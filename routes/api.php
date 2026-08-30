@@ -21,6 +21,9 @@ use App\Http\Controllers\StudentGradeController;
 use App\Http\Controllers\StudentSubjectController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkshopController;
+use App\Http\Controllers\WorkshopEditionController;
+use App\Http\Controllers\WorkshopEnrollmentController;
 use Illuminate\Support\Facades\Route;
 
 // Datos públicos de la institución (contacto) para la landing page
@@ -46,9 +49,39 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1,2'])->group(function (
     Route::get('pays/cards', [PayController::class, 'dataCards']);
     Route::get('pays/{pay}/receipt', [PayController::class, 'receipt']);
     Route::get('students/{student}/academic-history/export', [StudentController::class, 'exportAcademicHistory']);
+
+    // Capacitaciones compartidas
+    Route::get('workshop-enrollments', [WorkshopEnrollmentController::class, 'index']);
+    Route::post('workshop-enrollments', [WorkshopEnrollmentController::class, 'store']);
+    Route::put('workshop-enrollments/{enrollment}', [WorkshopEnrollmentController::class, 'update']);
+    Route::get('workshops/simple', [WorkshopController::class, 'simple']);
+    Route::get('workshop-editions/simple/all', [WorkshopEditionController::class, 'editionsSimple']);
 });
 
 Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () {
+    // Capacitaciones/Talleres
+    Route::get('workshops', [WorkshopController::class, 'index']);
+    Route::post('workshops', [WorkshopController::class, 'store']);
+    Route::get('workshops/{workshop}', [WorkshopController::class, 'show']);
+    Route::put('workshops/{workshop}', [WorkshopController::class, 'update']);
+    Route::delete('workshops/{workshop}', [WorkshopController::class, 'destroy']);
+    Route::put('workshops/{workshop}/toggle-status', [WorkshopController::class, 'toggleStatus']);
+
+    Route::post('workshops/{workshop}/modules', [WorkshopController::class, 'storeModule']);
+    Route::put('workshops/{workshop}/modules/{module}', [WorkshopController::class, 'updateModule']);
+    Route::delete('workshops/{workshop}/modules/{module}', [WorkshopController::class, 'destroyModule']);
+
+    Route::get('workshops/{workshop}/editions', [WorkshopEditionController::class, 'index']);
+    Route::post('workshops/{workshop}/editions', [WorkshopEditionController::class, 'store']);
+    Route::get('workshop-editions/{edition}', [WorkshopEditionController::class, 'show']);
+    Route::put('workshop-editions/{edition}', [WorkshopEditionController::class, 'update']);
+    Route::delete('workshop-editions/{edition}', [WorkshopEditionController::class, 'destroy']);
+    Route::put('workshop-editions/{edition}/toggle-status', [WorkshopEditionController::class, 'toggleStatus']);
+
+    Route::get('workshop-editions/{edition}/concepts', [WorkshopEditionController::class, 'concepts']);
+    Route::post('workshop-editions/{edition}/concepts', [WorkshopEditionController::class, 'storeConcept']);
+    Route::delete('workshop-concepts/{concept}', [WorkshopEditionController::class, 'destroyConcept']);
+
     Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);

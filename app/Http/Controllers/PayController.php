@@ -81,34 +81,35 @@ class PayController extends Controller
         $request->validate([
             'student_id' => 'required|integer|exists:students,id',
             'concept_id' => 'required|integer|exists:concepts,id',
-            'amount'          => 'required|numeric|min:0',
-            'discount'        => 'nullable|numeric|min:0',
-            'description'     => 'nullable|string',
-            'payment_method'  => 'required|in:efectivo,qr',
+            'amount' => 'required|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'description' => 'nullable|string',
+            'payment_method' => 'required|in:efectivo,qr',
         ]);
 
         try {
             $pay = Pay::create([
-                'user_id'         => auth()->id(),
-                'student_id'      => $request->student_id,
-                'concept_id'      => $request->concept_id,
-                'amount'          => $request->amount,
-                'discount'        => $request->discount ?? 0,
-                'description'     => $request->description,
-                'payment_method'  => $request->payment_method,
-                'status'          => 1,
+                'user_id' => auth()->id(),
+                'student_id' => $request->student_id,
+                'concept_id' => $request->concept_id,
+                'amount' => $request->amount,
+                'discount' => $request->discount ?? 0,
+                'description' => $request->description,
+                'payment_method' => $request->payment_method,
+                'source' => 'career',
+                'status' => 1,
             ]);
 
             $pay->load(['concept.career', 'student.user', 'casher']);
 
             return response()->json([
                 'message' => 'Pago registrado exitosamente',
-                'pay'     => $pay,
+                'pay' => $pay,
             ], 201);
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error al registrar el pago',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -167,4 +168,6 @@ class PayController extends Controller
             return response()->json([''],500);
         }
     }
+
+
 }
