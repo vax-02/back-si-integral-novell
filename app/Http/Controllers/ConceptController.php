@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concept;
+use App\Models\Pay;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceResponse;
@@ -115,6 +116,10 @@ class ConceptController extends Controller
     public function destroy(Concept $concept)
     {
         try{
+            $hasPays = Pay::where('concept_id', $concept->id)->exists();
+            if ($hasPays) {
+                return response()->json(['message' => 'No se puede eliminar: el concepto tiene pagos registrados.'], 409);
+            }
             $concept->delete();
             return response()->json(['message' => 'Concepto eliminado exitosamente'],200);
         }catch(Exception $e){
