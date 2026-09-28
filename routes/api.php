@@ -98,6 +98,7 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::get('parallels/{parallel}/students', [ParallelController::class, 'students']);
     Route::post('parallels/{parallel}/preview-advance', [StudentController::class, 'previewParallelAdvance']);
     Route::post('parallels/{parallel}/advance-level', [StudentController::class, 'advanceParallelLevel']);
+    Route::post('parallels/{parallel}/auto-advance', [StudentController::class, 'autoAdvanceParallel']);
 
     Route::apiResource('parallels', ParallelController::class);
     Route::apiResource('institutions', InstitutionController::class)->except(['index']);
@@ -118,6 +119,9 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::put('students/{student}/toggle-status', [StudentController::class, 'toggleStatus']);
     Route::post('students/{student}/advance-level', [StudentController::class, 'advanceLevel']);
     Route::post('students/{student}/preview-advance', [StudentController::class, 'previewAdvanceLevel']);
+    Route::get('students/{student}/career-subjects', [StudentController::class, 'getCareerSubjects']);
+    Route::get('students/{student}/grades-detail', [StudentController::class, 'getStudentGradesDetail']);
+    Route::put('students/{student}/assign-subjects', [StudentController::class, 'assignSubjects']);
     Route::post('students/{student}/graduate', [StudentController::class, 'graduate']);
     Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
     Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);

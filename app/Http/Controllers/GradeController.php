@@ -243,9 +243,33 @@ class GradeController extends Controller
                 ->where('parallel_id', $request->parallel_id)
                 ->update(['published' => true]);
 
+            // Verificar si todas las materias del paralelo están publicadas
+            // y ejecutar avance automático
+            $parallel = \App\Models\Parallel::with('course')->find($request->parallel_id);
+            $autoAdvanceResult = null;
+
+            if ($parallel) {
+                $career = $parallel->course->career;
+                $careerSubjectIds = \App\Models\Subject::where('career_id', $career->id)->pluck('id');
+
+                $totalSubjects = $careerSubjectIds->count();
+                $publishedCount = \App\Models\Qualification::where('parallel_id', $request->parallel_id)
+                    ->whereIn('subject_id', $careerSubjectIds)
+                    ->where('published', true)
+                    ->distinct('subject_id')
+                    ->count('subject_id');
+
+                // Si todas las materias están publicadas, ejecutar avance automático
+                if ($publishedCount >= $totalSubjects && $totalSubjects > 0) {
+                    $studentController = new \App\Http\Controllers\StudentController();
+                    $autoAdvanceResult = $studentController->processAutoAdvance($parallel);
+                }
+            }
+
             return response()->json([
                 'message' => 'Notas publicadas correctamente.',
                 'published' => true,
+                'auto_advance' => $autoAdvanceResult,
             ]);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -479,11 +503,15 @@ class GradeController extends Controller
 
                 $observation = null;
                 $effectiveGrade = $promedioFinal;
-                if ($qual?->recovery_grade !== null && $promedioFinal !== null && $promedioFinal < 61) {
+                $passedWithRecovery = $qual?->recovery_grade !== null && $promedioFinal !== null && $promedioFinal < 61 && $qual->recovery_grade >= 51;
+                if ($passedWithRecovery) {
                     $effectiveGrade = $qual->recovery_grade;
                 }
                 if ($effectiveGrade !== null) {
                     $observation = $effectiveGrade >= 61 ? 'Aprobado' : 'Reprobado';
+                    if ($passedWithRecovery) {
+                        $observation = 'Aprobado con recuperación';
+                    }
                 } else {
                     $observation = 'Abandono';
                 }

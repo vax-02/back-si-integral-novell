@@ -31,7 +31,7 @@ class CourseController extends Controller
             $perPage = $request->input('per_page', 10);
             $search  = $request->input('search');
 
-            $query = Course::with('career')->withCount('parallels');
+            $query = Course::with('career')->withCount('parallels', 'students');
             if ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%$search%")

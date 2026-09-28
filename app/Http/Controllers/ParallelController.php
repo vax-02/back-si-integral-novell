@@ -186,12 +186,23 @@ class ParallelController extends Controller
     public function students(Parallel $parallel)
     {
         try {
+            $course = Course::with('career')->findOrFail($parallel->course_id);
+            $career = $course->career;
+
             $students = StudentParallel::where('parallel_id', $parallel->id)
                 ->where('status', true)
                 ->with('student.user')
                 ->get()
-                ->map(function ($sp) {
+                ->map(function ($sp) use ($career) {
                     $student = $sp->student;
+
+                    // Evaluar si puede avanzar
+                    $studentController = new \App\Http\Controllers\StudentController();
+                    $reflection = new \ReflectionClass($studentController);
+                    $method = $reflection->getMethod('evaluateAdvance');
+                    $method->setAccessible(true);
+                    $evaluation = $method->invoke($studentController, $student, $career);
+
                     return [
                         'id'           => $student->id,
                         'name'         => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
@@ -199,6 +210,8 @@ class ParallelController extends Controller
                         'email'        => $student->user->email ?? '—',
                         'cellphone'    => $student->user->cellphone ?? '—',
                         'status'       => $student->user->status ?? 0,
+                        'can_advance'  => $evaluation['can_advance'] ?? true,
+                        'block_reasons' => $evaluation['block_reasons'] ?? [],
                     ];
                 });
 

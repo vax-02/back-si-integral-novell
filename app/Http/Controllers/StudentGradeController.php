@@ -82,7 +82,7 @@ class StudentGradeController extends Controller
                 })->with('user')->first();
 
                 $effectiveGrade = $qual->final_grade;
-                if ($qual->recovery_grade !== null && $qual->final_grade !== null && $qual->final_grade < 61) {
+                if ($qual->recovery_grade !== null && $qual->final_grade !== null && $qual->final_grade < 61 && $qual->recovery_grade >= 51) {
                     $effectiveGrade = $qual->recovery_grade;
                 }
 

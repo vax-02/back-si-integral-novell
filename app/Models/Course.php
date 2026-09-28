@@ -24,4 +24,10 @@ class Course extends Model
     public function parallels(){
         return $this->hasMany(Parallel::class);
     }
+
+    public function students()
+    {
+        return $this->hasManyThrough(StudentParallel::class, Parallel::class)
+            ->where('student_parallels.status', 1);
+    }
 }

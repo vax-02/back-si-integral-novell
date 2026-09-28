@@ -23,8 +23,11 @@ use function Illuminate\Support\now;
 
 class StudentController extends Controller
 {
+    /** @var array IDs de student_subject ya procesadas en evaluateAdvance (evita duplicar) */
+    private array $processedSubjectIds = [];
+
     /**
-     * Display a listing of the resource.
+     * Pre-registro de estudiantes a un courses.
      */
     public function index(Request $request)
     {
@@ -633,26 +636,41 @@ class StudentController extends Controller
         $validated = $request->validate([
             'career_id' => ['required', 'exists:careers,id'],
             'parallel_id' => ['required', 'exists:parallels,id'],
+            'max_subjects' => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
+
+        $maxSubjects = $validated['max_subjects'] ?? 6;
 
         DB::beginTransaction();
         try {
             $career = Career::findOrFail($validated['career_id']);
 
-            $preview = $this->evaluateAdvance($student, $career);
+            // Evaluar y persistir en una sola llamada (evita duplicados)
+            $evaluation = $this->evaluateAdvance($student, $career, true, $maxSubjects);
 
-            if (empty($preview['has_active_parallel'])) {
+            if (empty($evaluation['has_active_parallel'])) {
                 DB::rollBack();
                 return response()->json([
                     'message' => 'El estudiante no tiene un paralelo activo en esta carrera.'
                 ], 422);
             }
 
-            if ($preview['is_last_level']) {
+            if ($evaluation['is_last_level']) {
                 DB::rollBack();
                 return response()->json([
                     'message' => 'El estudiante ya cursa el último nivel de la carrera.'
                 ], 422);
+            }
+
+            if (empty($evaluation['can_advance'])) {
+                DB::rollBack();
+                $reasons = $evaluation['block_reasons'] ?? [];
+                $details = collect($reasons)->pluck('sigla')->implode(', ');
+                return response()->json([
+                    'message' => 'El estudiante no puede avanzar. Materias bloqueadas: ' . $details,
+                    'can_advance' => false,
+                    'block_reasons' => $reasons,
+                ]);
             }
 
             // Validar que el paralelo destino pertenezca al curso del siguiente nivel
@@ -666,10 +684,10 @@ class StudentController extends Controller
                 ], 422);
             }
 
-            if ((int) $newParallel->course->level !== $preview['new_level']) {
+            if ((int) $newParallel->course->level !== $evaluation['new_level']) {
                 DB::rollBack();
                 return response()->json([
-                    'message' => 'El paralelo seleccionado no corresponde al siguiente nivel (nivel ' . $preview['new_level'] . ').'
+                    'message' => 'El paralelo seleccionado no corresponde al siguiente nivel (nivel ' . $evaluation['new_level'] . ').'
                 ], 422);
             }
 
@@ -700,9 +718,6 @@ class StudentController extends Controller
                 ], 422);
             }
 
-            // Persistir evaluación de materias (aprobadas/reprobadas/asignadas/falta)
-            $evaluation = $this->evaluateAdvance($student, $career, true);
-
             // Mover al estudiante al paralelo del siguiente nivel
             StudentParallel::where('student_id', $student->id)
                 ->whereHas('parallel.course', function ($query) use ($validated) {
@@ -725,6 +740,7 @@ class StudentController extends Controller
                 'new_level' => $evaluation['new_level'],
                 'approved' => $evaluation['approved'],
                 'repeated' => $evaluation['repeated'],
+                'pending' => $evaluation['pending'],
                 'assigned' => $evaluation['assigned'],
                 'missing_by_prerequisite' => $evaluation['missing_by_prerequisite'],
                 'parallel' => [
@@ -745,6 +761,209 @@ class StudentController extends Controller
     }
 
     /**
+     * Procesa el avance automático de todos los estudiantes de un paralelo.
+     * - Si TODAS las materias del nivel actual están aprobadas (>=61), avanza al siguiente nivel.
+     * - Si NO puede avanzar, re-asigna solo las materias cuyo pre-requisito se cumplió
+     *   y marca como "Reprobado" las materias bloqueadas (para historial).
+     * Retorna el resumen de lo procesado.
+     */
+    public function processAutoAdvance(Parallel $parallel): array
+    {
+        $career = $parallel->course->career;
+
+        $activeStudents = StudentParallel::where('parallel_id', $parallel->id)
+            ->where('status', true)
+            ->with('student')
+            ->get();
+
+        $results = [
+            'advanced' => 0,
+            're_registered' => 0,
+            'blocked' => 0,
+            'details' => [],
+        ];
+
+        foreach ($activeStudents as $sp) {
+            $student = $sp->student;
+            if (!$student) continue;
+
+            $preview = $this->evaluateAdvance($student, $career, false);
+
+            if (!$preview['has_active_parallel']) continue;
+
+            if ($preview['is_last_level']) {
+                $results['details'][] = [
+                    'student_id' => $student->id,
+                    'name' => trim($student->user->name . ' ' . $student->user->first_lastname . ' ' . $student->user->second_lastname),
+                    'action' => 'last_level',
+                ];
+                continue;
+            }
+
+            if ($preview['can_advance']) {
+                // TODAS las materias aprobadas → avanzar automáticamente
+                $evaluation = $this->evaluateAdvance($student, $career, true);
+
+                // Buscar paralelo del siguiente nivel con cupo
+                $nextCourse = Course::where('career_id', $career->id)
+                    ->where('level', $preview['new_level'])
+                    ->first();
+
+                if ($nextCourse) {
+                    $nextParallel = Parallel::where('course_id', $nextCourse->id)
+                        ->where('status', 1)
+                        ->withCount(['students as students_count' => function ($q) {
+                            $q->where('status', true);
+                        }])
+                        ->get()
+                        ->first(function ($p) {
+                            return $p->students_count < $p->limit;
+                        });
+
+                    if ($nextParallel) {
+                        // Desactivar paralelo actual
+                        StudentParallel::where('student_id', $student->id)
+                            ->where('parallel_id', $parallel->id)
+                            ->where('status', true)
+                            ->update(['status' => false]);
+
+                        // Asignar nuevo paralelo
+                        StudentParallel::create([
+                            'student_id' => $student->id,
+                            'parallel_id' => $nextParallel->id,
+                            'status' => true,
+                        ]);
+
+                        $results['advanced']++;
+                        $results['details'][] = [
+                            'student_id' => $student->id,
+                            'name' => trim($student->user->name . ' ' . $student->user->first_lastname . ' ' . $student->user->second_lastname),
+                            'action' => 'advanced',
+                            'from_level' => $preview['current_level'],
+                            'to_level' => $preview['new_level'],
+                            'parallel' => $nextParallel->paralelo,
+                        ];
+                    } else {
+                        $results['blocked']++;
+                        $results['details'][] = [
+                            'student_id' => $student->id,
+                            'name' => trim($student->user->name . ' ' . $student->user->first_lastname . ' ' . $student->user->second_lastname),
+                            'action' => 'no_capacity',
+                        ];
+                    }
+                }
+            } else {
+                // NO puede avanzar → re-asignar solo materias con prerequisito cumplido
+                $this->reRegisterStudentSubjects($student, $career, $preview);
+
+                $results['re_registered']++;
+                $results['details'][] = [
+                    'student_id' => $student->id,
+                    'name' => trim($student->user->name . ' ' . $student->user->first_lastname . ' ' . $student->user->second_lastname),
+                    'action' => 're_registered',
+                    'reasons' => count($preview['block_reasons']),
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Re-asigna materias de un estudiante que NO puede avanzar.
+     * - Materias con prerequisito cumplido → se asignan como 'Registrado' (para llevar)
+     * - Materias bloqueadas → se marcan como 'Reprobado' con nota (para historial)
+     */
+    private function reRegisterStudentSubjects(Student $student, Career $career, array $preview): void
+    {
+        $currentLevel = $preview['current_level'];
+        $careerSubjects = Subject::where('career_id', $career->id)->get();
+        $careerSubjectIds = $careerSubjects->pluck('id');
+
+        $studentSubjects = StudentSubject::where('student_id', $student->id)
+            ->whereIn('subject_id', $careerSubjectIds)
+            ->get()
+            ->keyBy('subject_id');
+
+        $publishedGrades = Qualification::where('student_id', $student->id)
+            ->where('published', true)
+            ->whereIn('subject_id', $careerSubjectIds)
+            ->get()
+            ->keyBy('subject_id');
+
+        $currentLevelSubjects = $careerSubjects->where('level', $currentLevel);
+
+        foreach ($currentLevelSubjects as $cs) {
+            $ss = $studentSubjects->get($cs->id);
+            $qual = $publishedGrades->get($cs->id);
+
+            if (!$ss) continue;
+
+            $hasGrade = $qual && $qual->final_grade !== null;
+            $passed = $hasGrade && $qual->final_grade >= 61;
+            $passedWithRecovery = $qual && !$passed && $qual->recovery_grade !== null && $qual->recovery_grade >= 51;
+
+            if ($passed || $passedWithRecovery) {
+                // Aprobada →保持 como 'Aprobado'
+                if ($ss->status !== 'Aprobado') {
+                    $ss->update(['status' => 'Aprobado']);
+                }
+            } else {
+                // Reprobada o sin calificación → marcar como 'Reprobado' para historial
+                if ($ss->status !== 'Reprobado') {
+                    $ss->update(['status' => 'Reprobado']);
+                }
+            }
+        }
+
+        // Asignar materias del siguiente nivel cuyo prerequisito se cumplió
+        if (!$preview['is_last_level']) {
+            $newLevel = $preview['new_level'];
+            $nextLevelSubjects = $careerSubjects->where('level', $newLevel)->sortBy('name');
+
+            foreach ($nextLevelSubjects as $subject) {
+                $prerequisiteMet = true;
+
+                if ($subject->subject_id) {
+                    $prereq = $studentSubjects->get($subject->subject_id);
+                    $prereqQual = $publishedGrades->get($subject->subject_id);
+
+                    if (!$prereq) {
+                        $prerequisiteMet = false;
+                    } else {
+                        $finalGrade = $prereqQual?->final_grade;
+                        $recoveryGrade = $prereqQual?->recovery_grade;
+                        $passed = $finalGrade !== null && $finalGrade >= 61;
+                        $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51 && !$passed;
+                        $prerequisiteMet = $passed || $passedWithRecovery;
+                    }
+                }
+
+                $existing = $studentSubjects->get($subject->id);
+
+                if ($prerequisiteMet) {
+                    // Prerequisito cumplido → asignar como 'Registrado'
+                    if (!$existing || $existing->status !== 'Registrado') {
+                        $rec = StudentSubject::updateOrCreate(
+                            ['student_id' => $student->id, 'subject_id' => $subject->id],
+                            ['status' => 'Registrado']
+                        );
+                        $this->processedSubjectIds[] = $rec->id;
+                    }
+                } else {
+                    // Prerequisito NO cumplido → asignar como 'Falta'
+                    if (!$existing || ($existing->status !== 'Falta' && $existing->status !== 'Reprobado')) {
+                        $rec = StudentSubject::updateOrCreate(
+                            ['student_id' => $student->id, 'subject_id' => $subject->id],
+                            ['status' => 'Falta']
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Vista previa (solo lectura) del avance de nivel: evalúa las materias
      * sin persistir ningún cambio.
      */
@@ -758,12 +977,15 @@ class StudentController extends Controller
 
         $validated = $request->validate([
             'career_id' => ['required', 'exists:careers,id'],
+            'max_subjects' => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
+
+        $maxSubjects = $validated['max_subjects'] ?? 6;
 
         try {
             $career = Career::findOrFail($validated['career_id']);
 
-            $preview = $this->evaluateAdvance($student, $career);
+            $preview = $this->evaluateAdvance($student, $career, false, $maxSubjects);
 
             if (empty($preview['has_active_parallel'])) {
                 return response()->json([
@@ -803,6 +1025,8 @@ class StudentController extends Controller
                 'new_level' => $preview['new_level'],
                 'total_levels' => $preview['total_levels'],
                 'is_last_level' => $preview['is_last_level'],
+                'can_advance' => $preview['can_advance'],
+                'block_reasons' => $preview['block_reasons'],
                 'approved' => $preview['approved'],
                 'repeated' => $preview['repeated'],
                 'assigned' => $preview['assigned'],
@@ -901,6 +1125,8 @@ class StudentController extends Controller
             ], 403);
         }
 
+        $maxSubjects = (int) ($request->query('max_subjects', 6));
+
         try {
             $course = Course::with('career')->findOrFail($parallel->course_id);
             $career = $course->career;
@@ -921,13 +1147,14 @@ class StudentController extends Controller
                 'last_level' => 0,
                 'no_active_parallel' => 0,
                 'advanceable' => 0,
+                'blocked' => 0,
                 'with_alerts' => 0,
             ];
 
             foreach ($assignments as $assignment) {
                 $student = $assignment->student;
 
-                $preview = $this->evaluateAdvance($student, $career);
+                $preview = $this->evaluateAdvance($student, $career, false, $maxSubjects);
 
                 if (empty($preview['has_active_parallel'])) {
                     $summary['no_active_parallel']++;
@@ -952,11 +1179,20 @@ class StudentController extends Controller
 
                 if ($isLastLevel) {
                     $summary['last_level']++;
+                } elseif (empty($preview['can_advance'])) {
+                    $summary['blocked']++;
                 } else {
                     $summary['advanceable']++;
                 }
 
-                $prerequisiteAlerts = $this->prerequisiteAlerts($preview['missing_by_prerequisite'] ?? []);
+                $careerSubjectIds = Subject::where('career_id', $career->id)->pluck('id');
+                $publishedGradesForStudent = Qualification::where('student_id', $student->id)
+                    ->where('published', true)
+                    ->whereIn('subject_id', $careerSubjectIds)
+                    ->get()
+                    ->keyBy('subject_id');
+
+                $prerequisiteAlerts = $this->prerequisiteAlerts($preview['missing_by_prerequisite'] ?? [], $publishedGradesForStudent);
 
                 if (count($prerequisiteAlerts) > 0) {
                     $summary['with_alerts']++;
@@ -968,10 +1204,13 @@ class StudentController extends Controller
                     'ci' => $student->user->ci ?? '—',
                     'is_last_level' => $isLastLevel,
                     'no_active_parallel' => false,
+                    'can_advance' => $preview['can_advance'] ?? true,
+                    'block_reasons' => $preview['block_reasons'] ?? [],
                     'current_level' => $preview['current_level'] ?? $currentLevel,
                     'new_level' => $preview['new_level'] ?? ($currentLevel + 1),
                     'approved' => $preview['approved'] ?? [],
                     'repeated' => $preview['repeated'] ?? [],
+                    'pending' => $preview['pending'] ?? [],
                     'assigned' => $preview['assigned'] ?? [],
                     'missing_by_prerequisite' => $preview['missing_by_prerequisite'] ?? [],
                     'prerequisite_alerts' => $prerequisiteAlerts,
@@ -1021,6 +1260,7 @@ class StudentController extends Controller
                 'summary' => $summary,
                 'students' => $students,
                 'available_parallels' => $availableParallels,
+                'max_subjects' => $maxSubjects,
             ]);
         } catch (Exception $e) {
             return response()->json([
@@ -1044,7 +1284,10 @@ class StudentController extends Controller
 
         $validated = $request->validate([
             'parallel_id' => ['required', 'exists:parallels,id'],
+            'max_subjects' => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
+
+        $maxSubjects = $validated['max_subjects'] ?? 6;
 
         DB::beginTransaction();
         try {
@@ -1081,13 +1324,22 @@ class StudentController extends Controller
                 ->with('student.user')
                 ->get();
 
-            // Contar cuántos estudiantes avanzarán realmente (con paralelo activo y sin ser último nivel)
+            // Contar cuántos estudiantes avanzarán realmente (con paralelo activo, sin ser último nivel, y que puedan avanzar)
             $advanceableCount = 0;
+            $blockedStudents = [];
 
             foreach ($assignments as $assignment) {
                 $advancePreview = $this->evaluateAdvance($assignment->student, $career);
 
                 if (empty($advancePreview['has_active_parallel']) || $advancePreview['is_last_level']) {
+                    continue;
+                }
+
+                if (empty($advancePreview['can_advance'])) {
+                    $blockedStudents[] = [
+                        'student' => $assignment->student,
+                        'block_reasons' => $advancePreview['block_reasons'] ?? [],
+                    ];
                     continue;
                 }
 
@@ -1109,25 +1361,28 @@ class StudentController extends Controller
 
             $students = [];
             $skippedLastLevel = [];
+            $skippedBlocked = [];
             $summary = [
                 'total' => $assignments->count(),
                 'advanced' => 0,
                 'skipped_last_level' => 0,
                 'skipped_no_active' => 0,
+                'skipped_blocked' => 0,
                 'with_alerts' => 0,
             ];
 
             foreach ($assignments as $assignment) {
                 $student = $assignment->student;
 
-                $preview = $this->evaluateAdvance($student, $career);
+                // Evaluar y persistir en una sola llamada (evita duplicados)
+                $evaluation = $this->evaluateAdvance($student, $career, true, $maxSubjects);
 
-                if (empty($preview['has_active_parallel'])) {
+                if (empty($evaluation['has_active_parallel'])) {
                     $summary['skipped_no_active']++;
                     continue;
                 }
 
-                if ($preview['is_last_level']) {
+                if ($evaluation['is_last_level']) {
                     $summary['skipped_last_level']++;
                     $skippedLastLevel[] = [
                         'id' => $student->id,
@@ -1136,10 +1391,24 @@ class StudentController extends Controller
                     continue;
                 }
 
-                // Persistir evaluación de materias (Aprobado/Reprobado/Registrado/Falta)
-                $evaluation = $this->evaluateAdvance($student, $career, true);
+                if (empty($evaluation['can_advance'])) {
+                    $summary['skipped_blocked']++;
+                    $skippedBlocked[] = [
+                        'id' => $student->id,
+                        'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                        'block_reasons' => $evaluation['block_reasons'] ?? [],
+                    ];
+                    continue;
+                }
 
-                $prerequisiteAlerts = $this->prerequisiteAlerts($evaluation['missing_by_prerequisite'] ?? []);
+                $careerSubjectIdsAdv = Subject::where('career_id', $career->id)->pluck('id');
+                $publishedGradesForStudent = Qualification::where('student_id', $student->id)
+                    ->where('published', true)
+                    ->whereIn('subject_id', $careerSubjectIdsAdv)
+                    ->get()
+                    ->keyBy('subject_id');
+
+                $prerequisiteAlerts = $this->prerequisiteAlerts($evaluation['missing_by_prerequisite'] ?? [], $publishedGradesForStudent);
 
                 if (count($prerequisiteAlerts) > 0) {
                     $summary['with_alerts']++;
@@ -1176,6 +1445,7 @@ class StudentController extends Controller
                     'new_level' => $evaluation['new_level'],
                     'approved' => $evaluation['approved'],
                     'repeated' => $evaluation['repeated'],
+                    'pending' => $evaluation['pending'],
                     'assigned' => $evaluation['assigned'],
                     'missing_by_prerequisite' => $evaluation['missing_by_prerequisite'],
                     'prerequisite_alerts' => $prerequisiteAlerts,
@@ -1191,6 +1461,7 @@ class StudentController extends Controller
                 'total_levels' => $totalLevels,
                 'summary' => $summary,
                 'skipped_last_level' => $skippedLastLevel,
+                'skipped_blocked' => $skippedBlocked,
                 'students' => $students,
                 'parallel' => [
                     'id' => $newParallel->id,
@@ -1210,10 +1481,44 @@ class StudentController extends Controller
     }
 
     /**
-     * Construye las alertas de pre-requisito: materia adeudada → materia que
-     * no puede llevar.
+     * Avance automático de nivel para todos los estudiantes de un paralelo.
+     * Se ejecuta después de publicar notas.
+     * - Aprobados → avanzan automáticamente al siguiente nivel.
+     * - Bloqueados → se re-asignan solo materias con prerequisito cumplido.
      */
-    private function prerequisiteAlerts(array $missingByPrerequisite): array
+    public function autoAdvanceParallel(Request $request, Parallel $parallel)
+    {
+        if (!auth()->user()->roles->contains('id', 1)) {
+            return response()->json([
+                'message' => 'Solo el administrador puede realizar esta acción.'
+            ], 403);
+        }
+
+        try {
+            $results = $this->processAutoAdvance($parallel);
+
+            return response()->json([
+                'message' => 'Proceso de avance automático completado.',
+                'summary' => [
+                    'advanced' => $results['advanced'],
+                    're_registered' => $results['re_registered'],
+                    'blocked' => $results['blocked'],
+                ],
+                'details' => $results['details'],
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al procesar avance automático.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Construye las alertas de pre-requisito: materia adeudada → materia que
+     * no puede llevar. Incluye la nota de la materia pre-requisito.
+     */
+    private function prerequisiteAlerts(array $missingByPrerequisite, $publishedGrades): array
     {
         $alerts = [];
 
@@ -1222,11 +1527,31 @@ class StudentController extends Controller
             $prereq = $blocked && $blocked->subject_id ? Subject::find($blocked->subject_id) : null;
 
             if ($prereq) {
+                $qual = $publishedGrades->get($prereq->id);
+                $finalGrade = $qual?->final_grade;
+                $recoveryGrade = $qual?->recovery_grade;
+
+                $passed = $finalGrade !== null && $finalGrade >= 61;
+                $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51 && !$passed;
+
+                if ($passed) {
+                    $observation = 'Aprobado';
+                } elseif ($passedWithRecovery) {
+                    $observation = 'Aprobado con recuperación';
+                } elseif ($finalGrade !== null) {
+                    $observation = 'Reprobado';
+                } else {
+                    $observation = 'Sin calificación';
+                }
+
                 $alerts[] = [
                     'prerequisite' => [
                         'id' => $prereq->id,
                         'sigla' => $prereq->sigla,
                         'name' => $prereq->name,
+                        'final_grade' => $finalGrade,
+                        'recovery_grade' => $recoveryGrade,
+                        'observation' => $observation,
                     ],
                     'blocked' => [
                         'id' => $blocked->id,
@@ -1245,8 +1570,10 @@ class StudentController extends Controller
      * Evalúa el avance de nivel de un estudiante en una carrera. Con $commit en true
      * persiste los cambios de estado de materias (Aprobado/Reprobado/Registrado/Falta).
      */
-    private function evaluateAdvance(Student $student, Career $career, bool $commit = false): array
+    private function evaluateAdvance(Student $student, Career $career, bool $commit = false, int $maxSubjects = 6): array
     {
+        $this->processedSubjectIds = [];
+
         $currentStudentParallel = StudentParallel::where('student_id', $student->id)
             ->where('status', true)
             ->whereHas('parallel.course', function ($query) use ($career) {
@@ -1284,18 +1611,30 @@ class StudentController extends Controller
 
         $approved = [];
         $repeated = [];
+        $pending = [];
 
         foreach ($studentSubjects as $ss) {
             if ($ss->status !== 'Registrado') {
                 continue;
             }
 
+            // Evitar procesar registros ya evaluados en esta transacción
+            if (in_array($ss->id, $this->processedSubjectIds)) {
+                continue;
+            }
+
             $subject = $careerSubjects->firstWhere('id', $ss->subject_id);
             $qual = $publishedGrades->get($ss->subject_id);
 
-            $passed = $qual && $qual->final_grade !== null && $qual->final_grade >= 61;
+            // Marcar como procesada para evitar duplicados en segunda llamada
+            $this->processedSubjectIds[] = $ss->id;
 
-            if ($passed) {
+            $hasGrade = $qual && $qual->final_grade !== null;
+            $passed = $hasGrade && $qual->final_grade >= 61;
+            $passedWithRecovery = $qual && !$passed && $qual->recovery_grade !== null && $qual->recovery_grade >= 51;
+            $isPassed = $passed || $passedWithRecovery;
+
+            if ($isPassed) {
                 if ($commit) {
                     $ss->update(['status' => 'Aprobado']);
                 }
@@ -1304,16 +1643,40 @@ class StudentController extends Controller
                     'sigla' => $subject->sigla,
                     'name' => $subject->name,
                     'level' => $subject->level,
+                    'observation' => $passed ? 'Aprobado' : 'Aprobado con recuperación',
+                    'final_grade' => $qual?->final_grade,
+                    'recovery_grade' => $qual?->recovery_grade,
+                ];
+            } elseif (!$hasGrade) {
+                // Sin calificación publicada — pendiente, NO es "repite"
+                $pending[] = [
+                    'id' => $subject->id,
+                    'sigla' => $subject->sigla,
+                    'name' => $subject->name,
+                    'level' => $subject->level,
+                    'observation' => 'Sin calificación',
+                    'final_grade' => null,
+                    'recovery_grade' => null,
                 ];
             } else {
+                // Tiene nota pero reprobó → cambiar a 'Reprobado' y crear nuevo registro para reinscripción
                 if ($commit) {
                     $ss->update(['status' => 'Reprobado']);
+                    $newRecord = StudentSubject::create([
+                        'student_id' => $student->id,
+                        'subject_id' => $subject->id,
+                        'status' => 'Registrado',
+                    ]);
+                    $this->processedSubjectIds[] = $newRecord->id;
                 }
                 $repeated[] = [
                     'id' => $subject->id,
                     'sigla' => $subject->sigla,
                     'name' => $subject->name,
                     'level' => $subject->level,
+                    'observation' => 'Reprobado',
+                    'final_grade' => $qual->final_grade,
+                    'recovery_grade' => $qual->recovery_grade,
                 ];
             }
         }
@@ -1321,26 +1684,42 @@ class StudentController extends Controller
         $assigned = [];
         $missingByPrerequisite = [];
 
-        // 2) Asignar materias del siguiente nivel según pre-requisitos
+        // 2) Asignar materias del siguiente nivel según pre-requisitos (máximo $maxSubjects)
+        $assignedCount = 0;
         if (!$isLastLevel) {
             $nextLevelSubjects = $careerSubjects
                 ->where('level', $newLevel)
                 ->sortBy('name');
 
             foreach ($nextLevelSubjects as $subject) {
+                if ($assignedCount >= $maxSubjects) {
+                    break;
+                }
+
                 $prerequisiteMet = true;
 
                 if ($subject->subject_id) {
                     $prereq = $studentSubjects->get($subject->subject_id);
-                    $prerequisiteMet = $prereq && $prereq->status === 'Aprobado';
+                    $prereqQual = $publishedGrades->get($subject->subject_id);
+
+                    if (!$prereq) {
+                        $prerequisiteMet = false;
+                    } else {
+                        $finalGrade = $prereqQual?->final_grade;
+                        $recoveryGrade = $prereqQual?->recovery_grade;
+                        $passed = $finalGrade !== null && $finalGrade >= 61;
+                        $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51 && !$passed;
+                        $prerequisiteMet = $passed || $passedWithRecovery;
+                    }
                 }
 
                 if ($prerequisiteMet) {
                     if ($commit) {
-                        StudentSubject::updateOrCreate(
+                        $assignedRecord = StudentSubject::updateOrCreate(
                             ['student_id' => $student->id, 'subject_id' => $subject->id],
                             ['status' => 'Registrado']
                         );
+                        $this->processedSubjectIds[] = $assignedRecord->id;
                         $studentSubjects[$subject->id] = StudentSubject::where('student_id', $student->id)
                             ->where('subject_id', $subject->id)
                             ->first();
@@ -1351,6 +1730,7 @@ class StudentController extends Controller
                         'name' => $subject->name,
                         'level' => $subject->level,
                     ];
+                    $assignedCount++;
                 } else {
                     if ($commit) {
                         StudentSubject::updateOrCreate(
@@ -1368,16 +1748,128 @@ class StudentController extends Controller
             }
         }
 
+        // 3) Determinar si el estudiante puede avanzar
+        // Puede avanzar si puede llevar al menos 1 materia del siguiente nivel
+        $currentLevelSubjects = $careerSubjects->where('level', $currentLevel);
+        $canAdvance = count($assigned) > 0;
+        $blockReasons = [];
+
+        foreach ($currentLevelSubjects as $cs) {
+            $ss = $studentSubjects->get($cs->id);
+            if (!$ss) {
+                $canAdvance = false;
+                $blockReasons[] = [
+                    'id' => $cs->id,
+                    'sigla' => $cs->sigla,
+                    'name' => $cs->name,
+                    'level' => $cs->level,
+                    'status' => 'No inscrito',
+                    'reason' => 'La materia no está inscrita',
+                    'final_grade' => null,
+                    'recovery_grade' => null,
+                    'observation' => 'No inscrito',
+                ];
+            } elseif ($ss->status === 'Reprobado') {
+                $qual = $publishedGrades->get($cs->id);
+                $finalGrade = $qual?->final_grade;
+                $recoveryGrade = $qual?->recovery_grade;
+                $passed = $finalGrade !== null && $finalGrade >= 61;
+                $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51 && !$passed;
+                $effectiveGrade = $passedWithRecovery ? $recoveryGrade : $finalGrade;
+                $observation = $passed ? 'Aprobado' : ($passedWithRecovery ? 'Aprobado con recuperación' : 'Reprobado');
+
+                if ($passedWithRecovery) {
+                    $approved[] = [
+                        'id' => $cs->id,
+                        'sigla' => $cs->sigla,
+                        'name' => $cs->name,
+                        'level' => $cs->level,
+                    ];
+                } else {
+                    $canAdvance = false;
+                    $blockReasons[] = [
+                        'id' => $cs->id,
+                        'sigla' => $cs->sigla,
+                        'name' => $cs->name,
+                        'level' => $cs->level,
+                        'status' => 'Reprobado',
+                        'reason' => 'La materia tiene nota menor a 61',
+                        'final_grade' => $finalGrade,
+                        'recovery_grade' => $recoveryGrade,
+                        'observation' => $observation,
+                    ];
+                }
+            } elseif ($ss->status === 'Registrado') {
+                $qual = $publishedGrades->get($cs->id);
+                if (!$qual || $qual->final_grade === null) {
+                    $canAdvance = false;
+                    $blockReasons[] = [
+                        'id' => $cs->id,
+                        'sigla' => $cs->sigla,
+                        'name' => $cs->name,
+                        'level' => $cs->level,
+                        'status' => 'Sin calificación',
+                        'reason' => 'La materia no tiene calificación publicada',
+                        'final_grade' => null,
+                        'recovery_grade' => null,
+                        'observation' => 'Sin calificación',
+                    ];
+                } elseif ($qual->final_grade < 61) {
+                    $recoveryGrade = $qual->recovery_grade;
+                    $passed = false;
+                    $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51;
+                    $effectiveGrade = $passedWithRecovery ? $recoveryGrade : $qual->final_grade;
+                    $observation = $passedWithRecovery ? 'Aprobado con recuperación' : 'Reprobado';
+
+                    if ($passedWithRecovery) {
+                        $approved[] = [
+                            'id' => $cs->id,
+                            'sigla' => $cs->sigla,
+                            'name' => $cs->name,
+                            'level' => $cs->level,
+                        ];
+                    } else {
+                        $canAdvance = false;
+                        $blockReasons[] = [
+                            'id' => $cs->id,
+                            'sigla' => $cs->sigla,
+                            'name' => $cs->name,
+                            'level' => $cs->level,
+                            'status' => 'Reprobado',
+                            'reason' => 'La materia tiene nota ' . $qual->final_grade . ' (menor a 61)',
+                            'final_grade' => $qual->final_grade,
+                            'recovery_grade' => $recoveryGrade,
+                            'observation' => $observation,
+                        ];
+                    }
+                } else {
+                    $recoveryGrade = $qual->recovery_grade;
+                    $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51;
+                    $observation = $passedWithRecovery ? 'Aprobado con recuperación' : 'Aprobado';
+                    $approved[] = [
+                        'id' => $cs->id,
+                        'sigla' => $cs->sigla,
+                        'name' => $cs->name,
+                        'level' => $cs->level,
+                    ];
+                }
+            }
+        }
+
         return [
             'has_active_parallel' => true,
             'current_level' => $currentLevel,
             'new_level' => $newLevel,
             'total_levels' => $totalLevels,
             'is_last_level' => $isLastLevel,
+            'can_advance' => $canAdvance,
+            'block_reasons' => $blockReasons,
             'approved' => $approved,
             'repeated' => $repeated,
+            'pending' => $pending,
             'assigned' => $assigned,
             'missing_by_prerequisite' => $missingByPrerequisite,
+            'max_subjects' => $maxSubjects,
             'current_parallel' => [
                 'id' => $currentStudentParallel->parallel_id,
                 'paralelo' => $currentStudentParallel->parallel->paralelo,
@@ -1587,5 +2079,216 @@ class StudentController extends Controller
         );
 
         return "{$careerInitial}{$number}-{$year}-{$initials}";
+    }
+
+    /**
+     * Obtiene las materias de la carrera del estudiante con su estado actual.
+     * Útil para la asignación manual de materias antes de avanzar de nivel.
+     */
+    public function getCareerSubjects(Request $request, Student $student)
+    {
+        try {
+            $careerId = $request->validate(['career_id' => ['required', 'exists:careers,id']]);
+
+            $subjects = Subject::where('career_id', $careerId['career_id'])->orderBy('level')->orderBy('name')->get();
+
+            $studentSubjects = StudentSubject::where('student_id', $student->id)
+                ->whereIn('subject_id', $subjects->pluck('id'))
+                ->get()
+                ->keyBy('subject_id');
+
+            $publishedGrades = Qualification::where('student_id', $student->id)
+                ->where('published', true)
+                ->whereIn('subject_id', $subjects->pluck('id'))
+                ->get()
+                ->keyBy('subject_id');
+
+            $result = $subjects->map(function ($subject) use ($studentSubjects, $publishedGrades) {
+                $ss = $studentSubjects->get($subject->id);
+                $qual = $publishedGrades->get($subject->id);
+                $finalGrade = $qual?->final_grade;
+                $recoveryGrade = $qual?->recovery_grade;
+                $passed = $finalGrade !== null && $finalGrade >= 61;
+                $passedWithRecovery = $recoveryGrade !== null && $recoveryGrade >= 51 && !$passed;
+                $observation = null;
+                if ($ss) {
+                    if ($ss->status === 'Aprobado') {
+                        $observation = 'Aprobado';
+                    } elseif ($passedWithRecovery) {
+                        $observation = 'Aprobado con recuperación';
+                    } elseif ($ss->status === 'Reprobado' || ($ss->status === 'Registrado' && $finalGrade !== null && $finalGrade < 61 && !$passedWithRecovery)) {
+                        $observation = 'Reprobado';
+                    } elseif ($ss->status === 'Registrado' && ($qual === null || $finalGrade === null)) {
+                        $observation = 'Sin calificación';
+                    } else {
+                        $observation = $ss->status;
+                    }
+                } else {
+                    $observation = 'No inscrito';
+                }
+
+                return [
+                    'id' => $subject->id,
+                    'sigla' => $subject->sigla,
+                    'name' => $subject->name,
+                    'level' => $subject->level,
+                    'prerequisite_id' => $subject->subject_id,
+                    'enrolled' => $ss ? true : false,
+                    'status' => $ss ? $ss->status : 'No inscrito',
+                    'final_grade' => $finalGrade,
+                    'recovery_grade' => $recoveryGrade,
+                    'observation' => $observation,
+                    'has_published_grade' => $qual ? true : false,
+                ];
+            });
+
+            return response()->json(['subjects' => $result]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al obtener materias', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Asigna o cambia el estado de materias de un estudiante de forma manual.
+     * El admin puede forzar el estado de una materia para permitir el avance.
+     */
+    public function assignSubjects(Request $request, Student $student)
+    {
+        try {
+            $validated = $request->validate([
+                'career_id' => ['required', 'exists:careers,id'],
+                'subjects' => ['required', 'array'],
+                'subjects.*.subject_id' => ['required', 'exists:subjects,id'],
+                'subjects.*.status' => ['required', 'in:Registrado,Falta'],
+            ]);
+
+            DB::beginTransaction();
+
+            foreach ($validated['subjects'] as $item) {
+                StudentSubject::updateOrCreate(
+                    ['student_id' => $student->id, 'subject_id' => $item['subject_id']],
+                    ['status' => $item['status']]
+                );
+            }
+
+            DB::commit();
+
+            return response()->json(['message' => 'Materias actualizadas correctamente.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error al asignar materias', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Obtiene el detalle de calificaciones de un estudiante por carrera.
+     * Retorna todas las materias del nivel actual con sus notas, estado y observación.
+     */
+    public function getStudentGradesDetail(Request $request, Student $student)
+    {
+        try {
+            $validated = $request->validate([
+                'career_id' => ['required', 'exists:careers,id'],
+            ]);
+
+            $career = Career::findOrFail($validated['career_id']);
+
+            $currentStudentParallel = StudentParallel::where('student_id', $student->id)
+                ->where('status', true)
+                ->whereHas('parallel.course', function ($query) use ($career) {
+                    $query->where('career_id', $career->id);
+                })
+                ->with('parallel.course')
+                ->first();
+
+            if (!$currentStudentParallel) {
+                return response()->json(['message' => 'El estudiante no tiene paralelo activo en esta carrera.'], 422);
+            }
+
+            $currentLevel = (int) $currentStudentParallel->parallel->course->level;
+
+            $careerSubjects = Subject::where('career_id', $career->id)->get();
+            $careerSubjectIds = $careerSubjects->pluck('id');
+
+            $studentSubjects = StudentSubject::where('student_id', $student->id)
+                ->whereIn('subject_id', $careerSubjectIds)
+                ->get()
+                ->keyBy('subject_id');
+
+            $publishedGrades = Qualification::where('student_id', $student->id)
+                ->where('published', true)
+                ->whereIn('subject_id', $careerSubjectIds)
+                ->with('details.evaluationColumn')
+                ->get()
+                ->keyBy('subject_id');
+
+            $result = $careerSubjects->map(function ($cs) use ($studentSubjects, $publishedGrades, $currentLevel) {
+                $ss = $studentSubjects->get($cs->id);
+                $qual = $publishedGrades->get($cs->id);
+
+                $finalGrade = $qual?->final_grade;
+                $recoveryGrade = $qual?->recovery_grade;
+
+                $hasGrade = $finalGrade !== null;
+                $passed = $hasGrade && $finalGrade >= 61;
+                $passedWithRecovery = $qual && !$passed && $recoveryGrade !== null && $recoveryGrade >= 51;
+
+                if (!$ss) {
+                    $observation = 'No inscrito';
+                } elseif ($passed) {
+                    $observation = 'Aprobado';
+                } elseif ($passedWithRecovery) {
+                    $observation = 'Aprobado con recuperación';
+                } elseif ($hasGrade) {
+                    $observation = 'Reprobado';
+                } else {
+                    $observation = 'Sin calificación';
+                }
+
+                // Detalle de evaluaciones (columnas de nota)
+                $details = [];
+                if ($qual && $qual->details) {
+                    $details = $qual->details->map(function ($d) {
+                        return [
+                            'evaluation' => $d->evaluationColumn?->name,
+                            'type' => $d->evaluationColumn?->type,
+                            'parcial' => $d->evaluationColumn?->parcial,
+                            'weight' => $d->evaluationColumn?->weight,
+                            'grade' => $d->grade,
+                        ];
+                    })->toArray();
+                }
+
+                return [
+                    'id' => $cs->id,
+                    'sigla' => $cs->sigla,
+                    'name' => $cs->name,
+                    'level' => $cs->level,
+                    'is_current_level' => $cs->level === $currentLevel,
+                    'enrolled' => $ss ? true : false,
+                    'status' => $ss ? $ss->status : 'No inscrito',
+                    'final_grade' => $finalGrade,
+                    'recovery_grade' => $recoveryGrade,
+                    'observation' => $observation,
+                    'has_published_grade' => $qual ? true : false,
+                    'details' => $details,
+                ];
+            });
+
+            return response()->json([
+                'student' => [
+                    'id' => $student->id,
+                    'name' => trim($student->user->name . ' ' . $student->user->first_lastname . ' ' . $student->user->second_lastname),
+                ],
+                'career' => [
+                    'id' => $career->id,
+                    'name' => $career->name,
+                ],
+                'current_level' => $currentLevel,
+                'subjects' => $result,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al obtener calificaciones', 'error' => $e->getMessage()], 500);
+        }
     }
 }
