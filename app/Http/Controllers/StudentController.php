@@ -104,6 +104,7 @@ class StudentController extends Controller
             'school_diploma' => ['required'],
             'carnet' => ['required'],
             'parallel_id' => ['required', 'exists:parallels,id'],
+            'matricula' => ['nullable', 'string', 'max:20'],
 
             // Convalidación (opcional)
             'convalidation_type' => ['nullable', 'in:BTH,Tecnico_Medio'],
@@ -139,7 +140,7 @@ class StudentController extends Controller
                 'student_id' => $student->id,
                 'career_id' => $validated['career_id'],
                 'enrolled' => now(),
-                'matricula' => $this->generateMatricula($career, $user),
+                'matricula' => $validated['matricula'] ?? $this->generateMatricula($career, $user),
             ]);
 
             UserRoles::create([
@@ -238,11 +239,13 @@ class StudentController extends Controller
 
             $career = Career::findOrFail($validated['career_id']);
 
+            $matricula = $validated['matricula'] ?? $this->generateMatricula($career, $user);
+
             StudentCareer::create([
                 'student_id' => $student->id,
                 'career_id' => $validated['career_id'],
                 'enrolled' => now(),
-                'matricula' => $this->generateMatricula($career, $user),
+                'matricula' => $matricula,
             ]);
 
             $hasRole = UserRoles::where('user_id', $user->id)
@@ -1911,7 +1914,7 @@ class StudentController extends Controller
                 'student_id' => $validated['student_id'],
                 'career_id'  => $validated['career_id'],
                 'enrolled'   => now(),
-                'matricula'  => $this->generateMatricula($career, $user),
+                'matricula'  => $validated['matricula'] ?? $this->generateMatricula($career, $user),
             ]);
 
             $parallel = Parallel::findOrFail($validated['parallel_id']);
