@@ -2,17 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Course;
 use App\Models\EvaluationColumn;
+use App\Models\Parallel;
 use App\Models\Qualification;
 use App\Models\QualificationDetail;
 use App\Models\Student;
-use App\Models\Parallel;
 use App\Models\StudentParallel;
 use App\Models\Subject;
 use App\Services\GradeExportService;
+use App\Services\ParcialReportExportService;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class GradeController extends Controller
@@ -48,7 +49,7 @@ class GradeController extends Controller
 
             $subject = Subject::find($subjectId);
 
-            $studentsData = $students->map(function ($student) use ($columns, $qualifications, $parallel, $subjectId, $subject) {
+            $studentsData = $students->map(function ($student) use ($columns, $qualifications, $subject) {
                 $qual = $qualifications->get($student->id);
                 $grades = [];
 
@@ -72,7 +73,7 @@ class GradeController extends Controller
 
                 return [
                     'id' => $student->id,
-                    'name' => $student->user->name . ' ' . $student->user->first_lastname,
+                    'name' => $student->user->name.' '.$student->user->first_lastname,
                     'ci' => $student->user->ci,
                     'grades' => $grades,
                     'theoretical_average' => $theoreticalAvg !== null ? round($theoreticalAvg, 2) : null,
@@ -83,7 +84,7 @@ class GradeController extends Controller
             });
 
             $totalQualifications = $qualifications->count();
-            $publishedQualifications = $qualifications->filter(fn($q) => $q->published)->count();
+            $publishedQualifications = $qualifications->filter(fn ($q) => $q->published)->count();
             $allPublished = $totalQualifications > 0 && $totalQualifications === $publishedQualifications;
 
             return response()->json([
@@ -171,6 +172,7 @@ class GradeController extends Controller
             ]);
         } catch (Exception $e) {
             DB::rollBack();
+
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -245,15 +247,15 @@ class GradeController extends Controller
 
             // Verificar si todas las materias del paralelo están publicadas
             // y ejecutar avance automático
-            $parallel = \App\Models\Parallel::with('course')->find($request->parallel_id);
+            $parallel = Parallel::with('course')->find($request->parallel_id);
             $autoAdvanceResult = null;
 
             if ($parallel) {
                 $career = $parallel->course->career;
-                $careerSubjectIds = \App\Models\Subject::where('career_id', $career->id)->pluck('id');
+                $careerSubjectIds = Subject::where('career_id', $career->id)->pluck('id');
 
                 $totalSubjects = $careerSubjectIds->count();
-                $publishedCount = \App\Models\Qualification::where('parallel_id', $request->parallel_id)
+                $publishedCount = Qualification::where('parallel_id', $request->parallel_id)
                     ->whereIn('subject_id', $careerSubjectIds)
                     ->where('published', true)
                     ->distinct('subject_id')
@@ -261,7 +263,7 @@ class GradeController extends Controller
 
                 // Si todas las materias están publicadas, ejecutar avance automático
                 if ($publishedCount >= $totalSubjects && $totalSubjects > 0) {
-                    $studentController = new \App\Http\Controllers\StudentController();
+                    $studentController = new StudentController;
                     $autoAdvanceResult = $studentController->processAutoAdvance($parallel);
                 }
             }
@@ -359,7 +361,7 @@ class GradeController extends Controller
                 ->where('parallel_id', $request->parallel_id)
                 ->first();
 
-            if (!$qualification) {
+            if (! $qualification) {
                 return response()->json(['error' => 'No existe calificación para este estudiante.'], 404);
             }
 
@@ -495,9 +497,9 @@ class GradeController extends Controller
                 }
 
                 $promedioFinal = null;
-                $validParciales = array_filter($parciales, fn($p) => $p['final_grade'] !== null);
+                $validParciales = array_filter($parciales, fn ($p) => $p['final_grade'] !== null);
                 if (count($validParciales) > 0) {
-                    $sum = array_sum(array_map(fn($p) => $p['final_grade'], $validParciales));
+                    $sum = array_sum(array_map(fn ($p) => $p['final_grade'], $validParciales));
                     $promedioFinal = round($sum / count($validParciales), 2);
                 }
 
@@ -518,7 +520,7 @@ class GradeController extends Controller
 
                 return [
                     'id' => $student->id,
-                    'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                    'name' => trim(($student->user->name ?? '').' '.($student->user->first_lastname ?? '').' '.($student->user->second_lastname ?? '')),
                     'ci' => $student->user->ci ?? '',
                     'parciales' => $parciales,
                     'promedio_final' => $promedioFinal,
@@ -549,7 +551,7 @@ class GradeController extends Controller
                 ],
                 'career' => $parallel->course?->career ? $parallel->course->career->only(['id', 'name', 'type']) : null,
                 'columns_by_parcial' => $columnsByParcial->map(function ($cols) {
-                    return $cols->map(fn($c) => [
+                    return $cols->map(fn ($c) => [
                         'id' => $c->id,
                         'name' => $c->name,
                         'type' => $c->type,
@@ -593,7 +595,7 @@ class GradeController extends Controller
             }
 
             $qualifications = $qualificationsQuery->get()
-                ->keyBy(fn ($q) => $q->student_id . '_' . $q->subject_id);
+                ->keyBy(fn ($q) => $q->student_id.'_'.$q->subject_id);
 
             if ($year) {
                 $studentIds = $qualifications->pluck('student_id')->unique();
@@ -613,7 +615,7 @@ class GradeController extends Controller
                 $count = 0;
 
                 foreach ($subjects as $subject) {
-                    $qual = $qualifications->get($student->id . '_' . $subject->id);
+                    $qual = $qualifications->get($student->id.'_'.$subject->id);
                     $final = $qual?->final_grade;
                     $recoveryGrade = $qual?->recovery_grade;
 
@@ -631,7 +633,7 @@ class GradeController extends Controller
 
                 return [
                     'id' => $student->id,
-                    'name' => trim(($student->user->name ?? '') . ' ' . ($student->user->first_lastname ?? '') . ' ' . ($student->user->second_lastname ?? '')),
+                    'name' => trim(($student->user->name ?? '').' '.($student->user->first_lastname ?? '').' '.($student->user->second_lastname ?? '')),
                     'ci' => $student->user->ci ?? '—',
                     'grades' => $grades,
                     'average' => $count > 0 ? round($sum / $count, 2) : null,
@@ -708,13 +710,13 @@ class GradeController extends Controller
         ]);
 
         try {
-            $service = new GradeExportService();
+            $service = new GradeExportService;
             $path = $service->generate((int) $request->parallel_id, (int) $request->year);
 
             $parallel = Parallel::with('course')->find($request->parallel_id);
-            $filename = 'Calificaciones_' . ($parallel?->course?->name ?? 'curso')
-                . '_' . ($parallel?->paralelo ?? '')
-                . '_' . $request->year . '.xlsx';
+            $filename = 'Calificaciones_'.($parallel?->course?->name ?? 'curso')
+                .'_'.($parallel?->paralelo ?? '')
+                .'_'.$request->year.'.xlsx';
             $filename = str_replace(' ', '_', $filename);
 
             return response()->download($path, $filename, [
@@ -739,14 +741,14 @@ class GradeController extends Controller
         ]);
 
         try {
-            $service = new \App\Services\ParcialReportExportService();
+            $service = new ParcialReportExportService;
             $path = $service->generate((int) $request->subject_id, (int) $request->parallel_id);
 
             $subject = Subject::find($request->subject_id);
             $parallel = Parallel::with('course')->find($request->parallel_id);
-            $filename = 'Informe_Parciales_' . ($subject?->sigla ?? 'materia')
-                . '_' . ($parallel?->paralelo ?? '')
-                . '.xlsx';
+            $filename = 'Informe_Parciales_'.($subject?->sigla ?? 'materia')
+                .'_'.($parallel?->paralelo ?? '')
+                .'.xlsx';
             $filename = str_replace(' ', '_', $filename);
 
             return response()->download($path, $filename, [
@@ -769,9 +771,11 @@ class GradeController extends Controller
         $weightSum = 0;
 
         foreach ($columns as $col) {
-            if ($col->type !== $type) continue;
+            if ($col->type !== $type) {
+                continue;
+            }
 
-            $detail = $details instanceof \Illuminate\Support\Collection
+            $detail = $details instanceof Collection
                 ? $details->firstWhere('evaluation_column_id', $col->id)
                 : collect($details)->firstWhere('evaluation_column_id', $col->id);
 
@@ -789,10 +793,11 @@ class GradeController extends Controller
      */
     private function calculateFinalGrade(?float $theoreticalAvg, ?float $practicalAvg, ?Subject $subject): ?float
     {
-        if (!$subject) {
+        if (! $subject) {
             if ($theoreticalAvg !== null && $practicalAvg !== null) {
                 return ($theoreticalAvg + $practicalAvg) / 2;
             }
+
             return $theoreticalAvg ?? $practicalAvg;
         }
 

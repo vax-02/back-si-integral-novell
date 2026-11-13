@@ -2059,29 +2059,93 @@ class StudentController extends Controller
 
     /**
      * Genera el número de matrícula con el formato:
-     * [Inicial Carrera][Nº Students 3 dígitos]-[Año 2 dígitos]-[Iniciales APM+Nombre]
-     * Ejemplo: I015-26-PGJ
+     * [Inicial Carrera][Nº inscrito en la carrera 3 dígitos]-[Año 2 dígitos]-[Iniciales APM+Nombre]
+     * Ejemplo: C002-26-CNJ
      */
     private function generateMatricula(Career $career, User $user): string
     {
+        return $this->buildMatricula(
+            $career,
+            $user->first_lastname,
+            $user->second_lastname,
+            $user->name,
+            $this->nextMatriculaSequence($career)
+        );
+    }
+
+    /**
+     * Devuelve la vista previa de la matrícula que se asignará al inscribir
+     * al estudiante, consultando el siguiente correlativo de la carrera.
+     */
+    public function previewMatricula(Request $request)
+    {
+        $validated = $request->validate([
+            'career_id' => ['required', 'exists:careers,id'],
+            'first_lastname' => ['required', 'string', 'max:255'],
+            'second_lastname' => ['nullable', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $career = Career::findOrFail($validated['career_id']);
+
+        return response()->json([
+            'matricula' => $this->buildMatricula(
+                $career,
+                $validated['first_lastname'],
+                $validated['second_lastname'] ?? null,
+                $validated['name'],
+                $this->nextMatriculaSequence($career)
+            ),
+        ]);
+    }
+
+    private function buildMatricula(
+        Career $career,
+        ?string $firstLastname,
+        ?string $secondLastname,
+        ?string $name,
+        int $sequence
+    ): string {
         // Inicial de la carrera (primera letra en mayúscula)
         $careerInitial = strtoupper(mb_substr($career->name, 0, 1));
 
-        // Número secuencial de students con padding de 3 dígitos
-        $studentCount = Student::count() + 1;
-        $number = str_pad($studentCount, 3, '0', STR_PAD_LEFT);
+        // Número correlativo de la carrera con padding de 3 dígitos
+        $number = str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
 
         // Año actual - últimos 2 dígitos
-        $year = substr(now()->format('Y'), -2);
+        $year = now()->format('y');
 
-        // Iniciales del estudiante: APM + AP + Nombre (en mayúsculas)
+        // Iniciales del estudiante: Apellido Paterno + Apellido Materno + Nombre
         $initials = strtoupper(
-            mb_substr($user->first_lastname, 0, 1) .
-            mb_substr($user->second_lastname ?? '', 0, 1) .
-            mb_substr($user->name, 0, 1)
+            mb_substr($firstLastname ?? '', 0, 1) .
+            mb_substr($secondLastname ?? '', 0, 1) .
+            mb_substr($name ?? '', 0, 1)
         );
 
         return "{$careerInitial}{$number}-{$year}-{$initials}";
+    }
+
+    /**
+     * Calcula el siguiente correlativo de matrícula dentro de una carrera
+     * consultando las matrículas ya registradas con el formato [Inicial][NNN]-[YY].
+     */
+    private function nextMatriculaSequence(Career $career): int
+    {
+        $careerInitial = strtoupper(mb_substr($career->name, 0, 1));
+        $pattern = '/^' . preg_quote($careerInitial, '/') . '(\d{3})-\d{2}-/u';
+
+        $maxSequence = StudentCareer::where('career_id', $career->id)
+            ->whereNotNull('matricula')
+            ->pluck('matricula')
+            ->reduce(function (int $max, string $matricula) use ($pattern) {
+                if (preg_match($pattern, $matricula, $matches)) {
+                    return max($max, (int) $matches[1]);
+                }
+
+                return $max;
+            }, 0);
+
+        return $maxSequence + 1;
     }
 
     /**

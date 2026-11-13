@@ -1,23 +1,23 @@
 <?php
 
 use App\Http\Controllers\AttendanceController;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CareerController;
 use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DegreeController;
 use App\Http\Controllers\DocenteController;
-use App\Http\Controllers\InstitutionController;
 use App\Http\Controllers\GradeController;
+use App\Http\Controllers\InstitutionController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ParallelController;
 use App\Http\Controllers\PayController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentGradeController;
 use App\Http\Controllers\StudentPayController;
 use App\Http\Controllers\StudentPensumController;
 use App\Http\Controllers\StudentScheduleController;
-use App\Http\Controllers\StudentGradeController;
 use App\Http\Controllers\StudentSubjectController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
@@ -45,6 +45,7 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
 // salvajes {param} del apiResource (ej. /careers/simple vs /careers/{career}).
 Route::middleware(['auth:sanctum', 'active.user', 'role:1,2'])->group(function () {
     Route::get('careers/simple', [CareerController::class, 'simple']);
+    Route::get('students/next-matricula', [StudentController::class, 'previewMatricula']);
     Route::get('parallels/{id}/first-course', [ParallelController::class, 'getFirstCourse']);
     Route::get('pays/cards', [PayController::class, 'dataCards']);
     Route::get('pays/{pay}/receipt', [PayController::class, 'receipt']);
@@ -84,7 +85,6 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::delete('workshop-concepts/{concept}', [WorkshopEditionController::class, 'destroyConcept']);
     Route::get('workshop-concepts/all', [WorkshopEditionController::class, 'allConcepts']);
 
-
     Route::get('careers/download-template', [CareerController::class, 'downloadTemplate']);
 
     Route::post('careers/import-preview', [CareerController::class, 'importPreview']);
@@ -93,7 +93,7 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::put('careers/{career}/subjects/{subject}', [CareerController::class, 'updateSubject']);
     Route::delete('careers/{career}/subjects/{subject}', [CareerController::class, 'deleteSubject']);
     Route::get('dashboard', [DashboardController::class, 'index']);
-    Route::put('parallels/{parallel}/toggle-status', [ParallelController::class,'toggleStatus']);
+    Route::put('parallels/{parallel}/toggle-status', [ParallelController::class, 'toggleStatus']);
     Route::get('parallels/{parallel}/materials', [MaterialController::class, 'materialsByParallel']);
     Route::get('parallels/{parallel}/students', [ParallelController::class, 'students']);
     Route::post('parallels/{parallel}/preview-advance', [StudentController::class, 'previewParallelAdvance']);
@@ -112,7 +112,7 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::apiResource('docentes', DocenteController::class);
     Route::post('docentes/from-user', [DocenteController::class, 'storeFromUser']);
 
-    Route::post('student-careers',[StudentController::class, 'addCareer']);
+    Route::post('student-careers', [StudentController::class, 'addCareer']);
     Route::post('students/{student}/withdraw/{career}', [StudentController::class, 'withdraw']);
     Route::post('students/{student}/reinstate/{career}', [StudentController::class, 'reinstate']);
     Route::put('students/{student}/parallel', [StudentController::class, 'updateParallel']);
@@ -124,17 +124,17 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:1'])->group(function () 
     Route::put('students/{student}/assign-subjects', [StudentController::class, 'assignSubjects']);
     Route::post('students/{student}/graduate', [StudentController::class, 'graduate']);
     Route::put('careers/{career}/toggle-status', [CareerController::class, 'toggleStatus']);
-    Route::put('docentes/{docente}/toggle-status',          [DocenteController::class, 'toggleStatus']);
-    Route::post('docentes/{docente}/subjects',              [DocenteController::class, 'assignSubject']);
-    Route::delete('docentes/{docente}/subjects/{subject}',  [DocenteController::class, 'removeSubject']);
+    Route::put('docentes/{docente}/toggle-status', [DocenteController::class, 'toggleStatus']);
+    Route::post('docentes/{docente}/subjects', [DocenteController::class, 'assignSubject']);
+    Route::delete('docentes/{docente}/subjects/{subject}', [DocenteController::class, 'removeSubject']);
 
     // Asistencia / biometría
     Route::put('docentes/{docente}/attendance-config', [AttendanceController::class, 'updateConfig']);
-    Route::get('docentes/{docente}/schedules',     [AttendanceController::class, 'getSchedules']);
-    Route::post('docentes/{docente}/schedules',    [AttendanceController::class, 'storeSchedule']);
-    Route::delete('docente-schedules/{schedule}',  [AttendanceController::class, 'destroySchedule']);
-    Route::post('attendance/import',               [AttendanceController::class, 'importAttendance']);
-    Route::get('attendance/validate',              [AttendanceController::class, 'validateAttendance']);
+    Route::get('docentes/{docente}/schedules', [AttendanceController::class, 'getSchedules']);
+    Route::post('docentes/{docente}/schedules', [AttendanceController::class, 'storeSchedule']);
+    Route::delete('docente-schedules/{schedule}', [AttendanceController::class, 'destroySchedule']);
+    Route::post('attendance/import', [AttendanceController::class, 'importAttendance']);
+    Route::get('attendance/validate', [AttendanceController::class, 'validateAttendance']);
     Route::get('subjects', [SubjectController::class, 'index']);
     Route::get('subjects/{subject}/detail', [SubjectController::class, 'detail']);
     Route::get('subjects/{subject}/history', [SubjectController::class, 'history']);
@@ -213,11 +213,11 @@ Route::middleware(['auth:sanctum', 'active.user', 'role:4'])->group(function () 
 
 Route::get('/zip-test', function () {
     return [
-        'php_binary'      => PHP_BINARY,
-        'php_version'     => PHP_VERSION,
-        'zip_class'       => class_exists(ZipArchive::class),
-        'zip_extension'   => extension_loaded('zip'),
-        'loaded_ini'      => php_ini_loaded_file(),
-        'scanned_ini'     => php_ini_scanned_files(),
+        'php_binary' => PHP_BINARY,
+        'php_version' => PHP_VERSION,
+        'zip_class' => class_exists(ZipArchive::class),
+        'zip_extension' => extension_loaded('zip'),
+        'loaded_ini' => php_ini_loaded_file(),
+        'scanned_ini' => php_ini_scanned_files(),
     ];
 });

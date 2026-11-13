@@ -7,42 +7,64 @@ use App\Models\Parallel;
 use App\Models\Qualification;
 use App\Models\Student;
 use App\Models\Subject;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Illuminate\Support\Facades\DB;
 
 class GradeExportService
 {
     private const NOTA_MINIMA = 61;
 
-    // Centralizador: subject columns G(7)-M(13), Estado=T(20), Observaciones=U(21)
+    // Centralizador: subject columns G(7)-S(19), Estado=T(20), Observaciones=U(21)
     private const CENTRAL_FIRST_SUBJECT_COL = 7;   // G
-    private const CENTRAL_LAST_SUBJECT_COL = 13;   // M
+
+    private const CENTRAL_LAST_SUBJECT_COL = 19;   // S
+
     private const CENTRAL_ESTADO_COL = 20;          // T
+
     private const CENTRAL_OBS_COL = 21;             // U
+
     private const CENTRAL_FIRST_DATA_ROW = 14;
+
     private const CENTRAL_LAST_DATA_ROW = 43;
+
     private const CENTRAL_LAST_COL = 'U';
 
     // Detalle materia: F(6)=PromTeorica, G(7)=PromPractica, H(8)=CalFinal, I(9)=Recuperacion, J(10)=Estado
     private const DETAIL_PROM_TEORICA_COL = 6;      // F
+
     private const DETAIL_PROM_PRACTICA_COL = 7;     // G
+
     private const DETAIL_FINAL_COL = 8;             // H
+
     private const DETAIL_RECUPERACION_COL = 9;      // I
+
     private const DETAIL_ESTADO_COL = 10;           // J
+
     private const DETAIL_FIRST_DATA_ROW = 13;
+
     private const DETAIL_LAST_DATA_ROW = 47;
+
     private const DETAIL_LAST_COL = 'J';
 
     private Parallel $parallel;
+
     private int $year;
+
     private array $subjects;
+
     private $columnsBySubject;
+
     private array $students;
+
     private $qualifications;
+
     private $docentes;
 
     public function generate(int $parallelId, int $year): string
@@ -68,9 +90,9 @@ class GradeExportService
             }
         }
         // Fallback: use any sheet that's not the centralizador or LISTA
-        if (!$baseSheet) {
+        if (! $baseSheet) {
             foreach ($spreadsheet->getSheetNames() as $name) {
-                if (!str_starts_with($name, 'Centralizador') && !str_starts_with($name, 'LISTA')) {
+                if (! str_starts_with($name, 'Centralizador') && ! str_starts_with($name, 'LISTA')) {
                     $baseSheet = $spreadsheet->getSheetByName($name);
                     break;
                 }
@@ -100,7 +122,7 @@ class GradeExportService
             if ($baseSheet) {
                 $sheet = $baseSheet->copy();
             } else {
-                $sheet = new Worksheet();
+                $sheet = new Worksheet;
             }
             $sheet->setTitle($this->uniqueSheetTitle($spreadsheet, $subject->sigla));
             $spreadsheet->addSheet($sheet);
@@ -115,7 +137,7 @@ class GradeExportService
         $this->cleanupBrokenReferences($spreadsheet);
 
         $writer = new Xlsx($spreadsheet);
-        $path = tempnam(sys_get_temp_dir(), 'calif_') . '.xlsx';
+        $path = tempnam(sys_get_temp_dir(), 'calif_').'.xlsx';
         $writer->save($path);
         $spreadsheet->disconnectWorksheets();
 
@@ -151,7 +173,7 @@ class GradeExportService
             ->with(['details', 'student.user'])
             ->get();
 
-        $this->qualifications = $qualifications->keyBy(fn ($q) => $q->student_id . '_' . $q->subject_id);
+        $this->qualifications = $qualifications->keyBy(fn ($q) => $q->student_id.'_'.$q->subject_id);
 
         $studentIds = $qualifications->pluck('student_id')->unique()->values();
 
@@ -173,13 +195,14 @@ class GradeExportService
     private function studentFullName($student): string
     {
         $u = $student->user;
-        return trim(($u->first_lastname ?? '') . ' ' . ($u->second_lastname ?? '') . ' ' . ($u->name ?? ''));
+
+        return trim(($u->first_lastname ?? '').' '.($u->second_lastname ?? '').' '.($u->name ?? ''));
     }
 
     private function docenteName(int $subjectId): string
     {
         $docenteId = $this->docentes[$subjectId] ?? null;
-        if (!$docenteId) {
+        if (! $docenteId) {
             return '';
         }
         $docente = DB::table('docentes')
@@ -189,18 +212,19 @@ class GradeExportService
             ->select('users.name', 'users.first_lastname', 'users.second_lastname', 'degrees.abbreviation')
             ->first();
 
-        if (!$docente) {
+        if (! $docente) {
             return '';
         }
-        $name = trim(($docente->first_lastname ?? '') . ' ' . ($docente->second_lastname ?? '') . ' ' . $docente->name);
+        $name = trim(($docente->first_lastname ?? '').' '.($docente->second_lastname ?? '').' '.$docente->name);
         $abbreviation = $docente->abbreviation ?? '';
-        return $abbreviation ? trim($abbreviation . ' ' . $name) : $name;
+
+        return $abbreviation ? trim($abbreviation.' '.$name) : $name;
     }
 
     private function finalGrade(int $studentId, int $subjectId): ?float
     {
-        $q = $this->qualifications->get($studentId . '_' . $subjectId);
-        if (!$q) {
+        $q = $this->qualifications->get($studentId.'_'.$subjectId);
+        if (! $q) {
             return null;
         }
         if ($q->final_grade !== null) {
@@ -210,7 +234,20 @@ class GradeExportService
         if (count($grades) === 0) {
             return null;
         }
+
         return round(array_sum($grades) / count($grades), 2);
+    }
+
+    private function displayGrade(int $studentId, int $subjectId): ?float
+    {
+        $final = $this->finalGrade($studentId, $subjectId);
+        $q = $this->qualifications->get($studentId.'_'.$subjectId);
+
+        if ($final !== null && $q?->recovery_grade !== null && $final < self::NOTA_MINIMA) {
+            return (float) $q->recovery_grade;
+        }
+
+        return $final;
     }
 
     /**
@@ -219,13 +256,13 @@ class GradeExportService
      */
     private function theoreticalAverage(int $studentId, int $subjectId): ?float
     {
-        $q = $this->qualifications->get($studentId . '_' . $subjectId);
-        if (!$q) {
+        $q = $this->qualifications->get($studentId.'_'.$subjectId);
+        if (! $q) {
             return null;
         }
 
         $columns = $this->columnsBySubject->get($subjectId);
-        if (!$columns || $columns->isEmpty()) {
+        if (! $columns || $columns->isEmpty()) {
             return null;
         }
 
@@ -253,13 +290,13 @@ class GradeExportService
      */
     private function practicalAverage(int $studentId, int $subjectId): ?float
     {
-        $q = $this->qualifications->get($studentId . '_' . $subjectId);
-        if (!$q) {
+        $q = $this->qualifications->get($studentId.'_'.$subjectId);
+        if (! $q) {
             return null;
         }
 
         $columns = $this->columnsBySubject->get($subjectId);
-        if (!$columns || $columns->isEmpty()) {
+        if (! $columns || $columns->isEmpty()) {
             return null;
         }
 
@@ -283,14 +320,15 @@ class GradeExportService
 
     private function columnGrades(int $studentId, int $subjectId): array
     {
-        $q = $this->qualifications->get($studentId . '_' . $subjectId);
-        if (!$q) {
+        $q = $this->qualifications->get($studentId.'_'.$subjectId);
+        if (! $q) {
             return [];
         }
         $grades = [];
         foreach ($q->details as $detail) {
             $grades[$detail->evaluation_column_id] = $detail->grade;
         }
+
         return $grades;
     }
 
@@ -298,7 +336,7 @@ class GradeExportService
     {
         $grades = [];
         foreach ($this->subjects as $subject) {
-            $g = $this->finalGrade($studentId, $subject->id);
+            $g = $this->displayGrade($studentId, $subject->id);
             if ($g !== null) {
                 $grades[] = $g;
             }
@@ -307,6 +345,7 @@ class GradeExportService
             return 'Abandono';
         }
         $avg = array_sum($grades) / count($grades);
+
         return $avg >= self::NOTA_MINIMA ? 'APROBADO' : 'REPROBADO';
     }
 
@@ -315,12 +354,14 @@ class GradeExportService
         if ($final === null) {
             return 'Abandono';
         }
+
         return $final >= self::NOTA_MINIMA ? 'APROBADO' : 'REPROBADO';
     }
 
     private function getRegimen(): string
     {
         $career = $this->parallel->course->career;
+
         return (int) $career->type === 2 ? 'SEMESTRAL' : 'ANUAL';
     }
 
@@ -339,42 +380,46 @@ class GradeExportService
         $blackFont = '000000';
 
         // Apply header row 7 styles (teal background, white/light blue font)
-        $headerRow7 = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'T', 'U'];
+        $headerRow7 = array_merge(
+            ['C', 'D', 'E', 'F'],
+            $this->colRange(self::CENTRAL_FIRST_SUBJECT_COL, self::CENTRAL_LAST_SUBJECT_COL),
+            ['T', 'U']
+        );
         foreach ($headerRow7 as $col) {
-            $style = $sheet->getStyle($col . '7');
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Calibri')->setSize(11);
-            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $style = $sheet->getStyle($col.'7');
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
+            $style->getFont()->setColor(new Color($whiteFont))->setBold(true)->setName('Calibri')->setSize(11);
+            $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
         // Apply row 8 styles (teal background, light blue font for subject names)
         for ($c = self::CENTRAL_FIRST_SUBJECT_COL; $c <= self::CENTRAL_LAST_SUBJECT_COL; $c++) {
             $col = $this->colLetter($c);
-            $style = $sheet->getStyle($col . '8');
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($lightBlueFont))->setBold(true)->setName('Calibri')->setSize(10);
-            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $style = $sheet->getStyle($col.'8');
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
+            $style->getFont()->setColor(new Color($lightBlueFont))->setBold(true)->setName('Calibri')->setSize(10);
+            $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
         // Apply rows 9-12 styles (light blue background, dark teal font)
         $labelRows = ['9', '10', '11', '12'];
         foreach ($labelRows as $r) {
-            $style = $sheet->getStyle('C' . $r);
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Calibri')->setSize(11);
+            $style = $sheet->getStyle('C'.$r);
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($tealBg);
+            $style->getFont()->setColor(new Color($whiteFont))->setBold(true)->setName('Calibri')->setSize(11);
 
-            $style = $sheet->getStyle('E' . $r);
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($darkTealFont))->setName('Calibri')->setSize(11);
+            $style = $sheet->getStyle('E'.$r);
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
+            $style->getFont()->setColor(new Color($darkTealFont))->setName('Calibri')->setSize(11);
         }
 
         // Apply row 13 styles (light blue background, dark teal font for column headers)
         $dataHeaderCols = ['C', 'D', 'F'];
         foreach ($dataHeaderCols as $col) {
-            $style = $sheet->getStyle($col . '13');
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($darkTealFont))->setBold(true)->setName('Calibri')->setSize(11);
-            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $style = $sheet->getStyle($col.'13');
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($lightBlueBg);
+            $style->getFont()->setColor(new Color($darkTealFont))->setBold(true)->setName('Calibri')->setSize(11);
+            $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
         // Fill header info
@@ -382,7 +427,7 @@ class GradeExportService
         $sheet->setCellValue('U5', mb_strtoupper($this->parallel->turno));
         $sheet->setCellValue('E10', mb_strtoupper($career->name));
         $sheet->setCellValue('E11', $this->getRegimen());
-        $sheet->setCellValue('E12', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
+        $sheet->setCellValue('E12', mb_strtoupper($course->name).' - '.$this->parallel->paralelo);
 
         // Fill subject siglas (row 7) and names (row 8)
         $used = 0;
@@ -391,22 +436,26 @@ class GradeExportService
                 break;
             }
             $col = $this->colLetter(self::CENTRAL_FIRST_SUBJECT_COL + $i);
-            $sheet->setCellValue($col . '7', $subject->sigla);
-            $sheet->setCellValue($col . '8', $subject->name);
+            $sheet->setCellValue($col.'7', $subject->sigla);
+            $sheet->setCellValue($col.'8', $subject->name);
             $used++;
         }
         // Clear unused subject columns
         for ($c = self::CENTRAL_FIRST_SUBJECT_COL + $used; $c <= self::CENTRAL_LAST_SUBJECT_COL; $c++) {
             $col = $this->colLetter($c);
-            $sheet->setCellValue($col . '7', '');
-            $sheet->setCellValue($col . '8', '');
+            $sheet->setCellValue($col.'7', '');
+            $sheet->setCellValue($col.'8', '');
         }
 
         // Clear data rows
-        $clearCols = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'T', 'U'];
+        $clearCols = array_merge(
+            ['C', 'D', 'E', 'F'],
+            $this->colRange(self::CENTRAL_FIRST_SUBJECT_COL, self::CENTRAL_LAST_SUBJECT_COL),
+            ['T', 'U']
+        );
         for ($r = self::CENTRAL_FIRST_DATA_ROW; $r <= self::CENTRAL_LAST_DATA_ROW; $r++) {
             foreach ($clearCols as $col) {
-                $sheet->setCellValue($col . $r, '');
+                $sheet->setCellValue($col.$r, '');
             }
         }
 
@@ -428,9 +477,9 @@ class GradeExportService
         $row = self::CENTRAL_FIRST_DATA_ROW;
 
         foreach ($this->students as $index => $student) {
-            $sheet->setCellValue('C' . $row, $index + 1);
-            $sheet->setCellValue('D' . $row, $this->studentFullName($student));
-            $sheet->setCellValue('F' . $row, $student->user->ci ?? '');
+            $sheet->setCellValue('C'.$row, $index + 1);
+            $sheet->setCellValue('D'.$row, $this->studentFullName($student));
+            $sheet->setCellValue('F'.$row, $student->user->ci ?? '');
 
             // Fill grades for each subject
             foreach ($this->subjects as $i => $subject) {
@@ -438,20 +487,20 @@ class GradeExportService
                     break;
                 }
                 $col = $this->colLetter(self::CENTRAL_FIRST_SUBJECT_COL + $i);
-                $final = $this->finalGrade($student->id, $subject->id);
-                $sheet->setCellValue($col . $row, $final ?? '');
-                $sheet->getStyle($col . $row)->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont))->setName('Arial')->setSize(11);
-                $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+                $final = $this->displayGrade($student->id, $subject->id);
+                $sheet->setCellValue($col.$row, $final ?? '');
+                $sheet->getStyle($col.$row)->getFont()->setColor(new Color($blackFont))->setName('Arial')->setSize(11);
+                $sheet->getStyle($col.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             }
 
             // Estado and Observaciones (leave blank)
-            $sheet->setCellValue('T' . $row, $this->observacion($student->id));
-            $sheet->setCellValue('U' . $row, '');
+            $sheet->setCellValue('T'.$row, $this->observacion($student->id));
+            $sheet->setCellValue('U'.$row, '');
 
             // Style for row number and name
-            $sheet->getStyle('C' . $row)->getFont()->setName('Arial')->setSize(11);
-            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('D' . $row)->getFont()->setName('Arial Narrow')->setSize(11);
+            $sheet->getStyle('C'.$row)->getFont()->setName('Arial')->setSize(11);
+            $sheet->getStyle('C'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('D'.$row)->getFont()->setName('Arial Narrow')->setSize(11);
 
             $row++;
         }
@@ -470,10 +519,10 @@ class GradeExportService
         // Apply row 12 header styles (green background, white font)
         $headerCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J'];
         foreach ($headerCols as $col) {
-            $style = $sheet->getStyle($col . '12');
-            $style->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB($greenBg);
-            $style->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($whiteFont))->setBold(true)->setName('Arial')->setSize(10);
-            $style->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $style = $sheet->getStyle($col.'12');
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($greenBg);
+            $style->getFont()->setColor(new Color($whiteFont))->setBold(true)->setName('Arial')->setSize(10);
+            $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
         // Fill header info
@@ -483,29 +532,29 @@ class GradeExportService
         $sheet->setCellValue('J8', $subject->sigla);
         $sheet->setCellValue('E9', $this->docenteName($subject->id));
         $sheet->setCellValue('J9', mb_strtoupper($this->parallel->turno));
-        $sheet->setCellValue('E10', mb_strtoupper($course->name) . ' - ' . $this->parallel->paralelo);
+        $sheet->setCellValue('E10', mb_strtoupper($course->name).' - '.$this->parallel->paralelo);
         $sheet->setCellValue('J10', $this->year);
 
         // Style header info rows (bold labels)
         $labelCells = ['D5', 'D6', 'D7', 'D8', 'I8', 'D9', 'I9', 'D10', 'I10'];
         foreach ($labelCells as $cell) {
-            $sheet->getStyle($cell)->getFont()->setBold(true)->setName('Calibri')->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
+            $sheet->getStyle($cell)->getFont()->setBold(true)->setName('Calibri')->setSize(10)->setColor(new Color($blackFont));
         }
         $valueCells = ['E5', 'E6', 'E7', 'E8', 'J8', 'E9', 'J9', 'E10', 'J10'];
         foreach ($valueCells as $cell) {
-            $sheet->getStyle($cell)->getFont()->setName('Calibri')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont));
-            $sheet->getStyle($cell)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle($cell)->getFont()->setName('Calibri')->setSize(11)->setColor(new Color($blackFont));
+            $sheet->getStyle($cell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
         // Clear existing data rows
         for ($r = self::DETAIL_FIRST_DATA_ROW; $r <= self::DETAIL_LAST_DATA_ROW; $r++) {
-            $sheet->setCellValue('C' . $r, '');
-            $sheet->setCellValue('D' . $r, '');
-            $sheet->setCellValue('F' . $r, '');
-            $sheet->setCellValue('G' . $r, '');
-            $sheet->setCellValue('H' . $r, '');
-            $sheet->setCellValue('I' . $r, '');
-            $sheet->setCellValue('J' . $r, '');
+            $sheet->setCellValue('C'.$r, '');
+            $sheet->setCellValue('D'.$r, '');
+            $sheet->setCellValue('F'.$r, '');
+            $sheet->setCellValue('G'.$r, '');
+            $sheet->setCellValue('H'.$r, '');
+            $sheet->setCellValue('I'.$r, '');
+            $sheet->setCellValue('J'.$r, '');
         }
 
         // Extend rows if needed
@@ -528,45 +577,55 @@ class GradeExportService
         $practiceWeight = $subject->practice_weight ?? 0.7;
 
         foreach ($this->students as $index => $student) {
-            $sheet->setCellValue('C' . $row, $index + 1);
-            $sheet->setCellValue('D' . $row, $this->studentFullName($student));
+            $sheet->setCellValue('C'.$row, $index + 1);
+            $sheet->setCellValue('D'.$row, $this->studentFullName($student));
 
-            // Prom. Ev. Teórica = promedio teórico * theory_weight
             $theoAvg = $this->theoreticalAverage($student->id, $subject->id);
-            $theoWeighted = $theoAvg !== null ? round($theoAvg * $theoryWeight, 2) : null;
-            $sheet->setCellValue('F' . $row, $theoWeighted !== null ? $theoWeighted : '');
-
-            // Prom. Eval. Práctica = promedio práctico * practice_weight
             $pracAvg = $this->practicalAverage($student->id, $subject->id);
-            $pracWeighted = $pracAvg !== null ? round($pracAvg * $practiceWeight, 2) : null;
-            $sheet->setCellValue('G' . $row, $pracWeighted !== null ? $pracWeighted : '');
+            $q = $this->qualifications->get($student->id.'_'.$subject->id);
+            $storedFinal = $q?->final_grade !== null ? (float) $q->final_grade : null;
 
-            // Calificación Final = PromTeoricaPonderada + PromPracticaPonderada
-            $final = ($theoWeighted !== null ? $theoWeighted : 0) + ($pracWeighted !== null ? $pracWeighted : 0);
-            $final = $final > 0 ? $final : null;
-            $sheet->setCellValue('H' . $row, $final !== null ? $final : '');
+            $theoComponent = $theoAvg !== null ? round($theoAvg * $theoryWeight, 2) : null;
+            $pracComponent = $pracAvg !== null ? round($pracAvg * $practiceWeight, 2) : null;
+
+            // Datos históricos: Teórico + Práctico ya forman la nota final oficial.
+            if ($storedFinal !== null && $theoAvg !== null && $pracAvg !== null
+                && abs(($theoAvg + $pracAvg) - $storedFinal) <= 1.0) {
+                $theoComponent = round($theoAvg, 2);
+                $pracComponent = round($pracAvg, 2);
+            }
+
+            $sheet->setCellValue('F'.$row, $theoComponent !== null ? $theoComponent : '');
+            $sheet->setCellValue('G'.$row, $pracComponent !== null ? $pracComponent : '');
+
+            $computedFinal = ($theoComponent ?? 0) + ($pracComponent ?? 0);
+            $final = $storedFinal ?? ($computedFinal > 0 ? round($computedFinal, 2) : null);
+            $sheet->setCellValue('H'.$row, $final !== null ? $final : '');
 
             // Prueba de Recuperación
-            $q = $this->qualifications->get($student->id . '_' . $subject->id);
             $recovery = $q?->recovery_grade;
-            $sheet->setCellValue('I' . $row, $recovery !== null ? $recovery : '');
+            $sheet->setCellValue('I'.$row, $recovery !== null ? $recovery : '');
 
-            // Estado
-            $sheet->setCellValue('J' . $row, $this->observacionSubject($final));
+            // Estado (considera recuperación cuando la nota final es menor a 61)
+            $effectiveFinal = $final;
+            if ($effectiveFinal !== null && $recovery !== null && $effectiveFinal < self::NOTA_MINIMA) {
+                $effectiveFinal = (float) $recovery;
+            }
+            $sheet->setCellValue('J'.$row, $this->observacionSubject($effectiveFinal));
 
             // Apply data row styles (black font, no bold, Arial)
             $dataCols = ['C', 'D', 'F', 'G', 'H', 'I', 'J'];
             foreach ($dataCols as $col) {
-                $sheet->getStyle($col . $row)->getFont()->setName('Arial')->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($blackFont))->setBold(false);
+                $sheet->getStyle($col.$row)->getFont()->setName('Arial')->setSize(11)->setColor(new Color($blackFont))->setBold(false);
             }
-            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('D' . $row)->getFont()->setName('Arial Narrow')->setSize(11);
-            $sheet->getStyle('F' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('H' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('I' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('J' . $row)->getFont()->setName('Agency FB')->setSize(11);
-            $sheet->getStyle('J' . $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_JUSTIFY);
+            $sheet->getStyle('C'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('D'.$row)->getFont()->setName('Arial Narrow')->setSize(11);
+            $sheet->getStyle('F'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('G'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('H'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('I'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('J'.$row)->getFont()->setName('Agency FB')->setSize(11);
+            $sheet->getStyle('J'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_JUSTIFY);
 
             $row++;
         }
@@ -582,7 +641,7 @@ class GradeExportService
                 $sheet->getRowDimension($newRow)->setRowHeight($height);
             }
             foreach (range('A', $lastCol) as $col) {
-                $sheet->getStyle($col . $newRow)->applyFromArray($this->styleArrayFrom($sheet, $col . $sourceRow));
+                $sheet->getStyle($col.$newRow)->applyFromArray($this->styleArrayFrom($sheet, $col.$sourceRow));
             }
             foreach ($mergeRanges as $range) {
                 $sheet->mergeCells(str_replace('{r}', (string) $newRow, $range));
@@ -648,7 +707,7 @@ class GradeExportService
         $toRemove = [];
         foreach ($spreadsheet->getDefinedNames() as $definedName) {
             $refSheet = $this->referencedSheet($definedName->getValue());
-            if ($refSheet !== null && !in_array($refSheet, $sheetNames, true)) {
+            if ($refSheet !== null && ! in_array($refSheet, $sheetNames, true)) {
                 $toRemove[] = [$definedName->getName(), $definedName->getWorksheet()];
             }
         }
@@ -665,6 +724,7 @@ class GradeExportService
         if (preg_match('/^([A-Za-z0-9_ ]+)!/', $formula, $m)) {
             return $m[1];
         }
+
         return null;
     }
 
@@ -675,9 +735,10 @@ class GradeExportService
         $base = $title;
         $i = 2;
         while ($spreadsheet->sheetNameExists($title)) {
-            $title = mb_substr($base, 0, 27) . ' ' . $i;
+            $title = mb_substr($base, 0, 27).' '.$i;
             $i++;
         }
+
         return $title;
     }
 
@@ -692,6 +753,7 @@ class GradeExportService
         for ($c = $from; $c <= $to; $c++) {
             $letters[] = $this->colLetter($c);
         }
+
         return $letters;
     }
 }
